@@ -4,6 +4,7 @@ import {
   type AnimState, type Direction, type Look,
 } from "../catalog";
 import { animFrame, ensureLayerTexture, hatTransform, MELEE_FACING, resolveKey, sheetFor, type Layer } from "../art/layers";
+import { firearmArt } from "../art/firearmArt";
 
 const PARTS = ["body", "head", "hat"] as const;
 type Part = (typeof PARTS)[number];
@@ -17,6 +18,8 @@ const SWING_MS = 240;
 export class CharacterSprite extends Phaser.GameObjects.Container {
   private parts: Record<Part, Phaser.GameObjects.Sprite>;
   private melee: Phaser.GameObjects.Sprite;
+  private firearm: Phaser.GameObjects.Image;
+  private gunId = "";
   private keys: Record<Layer, string> = { body: "", head: "", hat: "", melee: "" };
   private shadow: Phaser.GameObjects.Ellipse;
   private label: Phaser.GameObjects.Text;
@@ -39,6 +42,7 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
     const mk = () => scene.add.sprite(0, 0, "__DEFAULT").setOrigin(0.5, 1);
     this.parts = { body: mk(), head: mk(), hat: mk() };
     this.melee = scene.add.sprite(0, 0, "__DEFAULT").setVisible(false);
+    this.firearm = scene.add.image(9, -9, "__DEFAULT").setVisible(false);
     this.label = scene.add
       .text(0, 1, name, {
         fontFamily: '"VT323", monospace',
@@ -50,7 +54,7 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
       .setOrigin(0.5, 0)
       .setResolution(4);
     this.hpBar = scene.add.graphics();
-    this.add([this.shadow, this.parts.body, this.parts.head, this.parts.hat, this.melee, this.label, this.hpBar]);
+    this.add([this.shadow, this.parts.body, this.parts.head, this.parts.hat, this.melee, this.firearm, this.label, this.hpBar]);
     scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
     this.setLook(look);
   }
@@ -59,6 +63,26 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
     this.look = sanitizeLook(look);
     for (const layer of [...PARTS, "melee"] as const) this.bind(layer);
     this.applyFrame();
+  }
+
+  setFirearm(id: string) {
+    if (id === this.gunId) return;
+    this.gunId = id;
+    void firearmArt(id).then((canvas) => {
+      if (!canvas || !this.scene || this.gunId !== id) return;
+      const key = `firearm:${id}`;
+      if (!this.scene.textures.exists(key)) this.scene.textures.addCanvas(key, canvas);
+      this.firearm.setTexture(key).setVisible(true);
+    });
+  }
+
+  shoot() {
+    const vector = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }[this.dir];
+    const startX = this.x + vector.x * 18, startY = this.y - 9 + vector.y * 18;
+    const bullet = this.scene.add.rectangle(startX, startY, 3, 3, 0xffe58a).setDepth(200000);
+    this.scene.tweens.add({ targets: bullet, x: startX + vector.x * 240, y: startY + vector.y * 240, duration: 360, onComplete: () => bullet.destroy() });
+    const flash = this.scene.add.circle(startX, startY, 4, 0xffe58a).setDepth(200000);
+    this.scene.time.delayedCall(70, () => flash.destroy());
   }
 
   /** Point a layer at its texture; custom uploads load in the background, then rebind. */
@@ -170,6 +194,8 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
       ? WALK_SEQUENCE[Math.floor(this.t / 130) % WALK_SEQUENCE.length] ?? 0
       : IDLE_SEQUENCE[Math.floor(this.t / 650) % IDLE_SEQUENCE.length] ?? 0;
     const f = frameIndex(this.dir, col);
+    const angle = { right: 0, down: 90, left: 180, up: -90 }[this.dir];
+    this.firearm.setAngle(angle).setPosition(this.dir === "left" ? -10 : 10, this.dir === "up" ? -13 : -9);
     for (const layer of PARTS) {
       const key = this.keys[layer];
       if (key) this.parts[layer].setFrame(animFrame(sheetFor(key), this.clock) * 16 + f);

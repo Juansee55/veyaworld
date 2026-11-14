@@ -7,9 +7,13 @@ import { BASES, captureZone } from "@/game/bases/defs";
 import { STATUS_LABEL } from "./BasesPanel";
 import { GangBadge, HpBar } from "./ui";
 import { IconButton } from "./IconButton";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
 /** Shared combat state: HP, protection, weapon, bandages and the base you're standing in. */
 export function useCombat(d: GameData, mapId: string, onAttack: () => Promise<string | null>) {
+  const qc = useQueryClient();
   const [cool, setCool] = useState(false);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(t); }, []);
@@ -43,7 +47,8 @@ export function useCombat(d: GameData, mapId: string, onAttack: () => Promise<st
   const heal = () => void rpc("use_item", { _item: "bandage" });
   const claim = () => void (inArmory ? rpc("claim_armory", undefined, "Weapon added to your bag") : rpc("claim_supplies", undefined, "Bandages restocked"));
   const claimLabel = inArmory ? `Take ${d.weapons.find((w) => w.id === base!.rack_weapon)?.name ?? "weapon"}` : inRespawn ? "Restock bandages" : null;
-  return { c, prot, weapon, bandages, base, owner, cool, attack, cycle, heal, claim, claimLabel };
+  const reload = async () => { const { error } = await supabase.rpc("reload_firearm"); if (error) notify(error.message, "error"); else await qc.invalidateQueries({ queryKey: ["g", "firearm"] }); };
+  return { c, prot, weapon, bandages, base, owner, cool, attack, cycle, heal, claim, claimLabel, rounds: d.firearm?.rounds ?? 12, gralats: d.wallet?.gralats ?? 0, reload };
 }
 type Combat = ReturnType<typeof useCombat>;
 
@@ -53,6 +58,8 @@ function HpCard({ s }: { s: Combat }) {
     <div className="pixel-panel px-2 py-1 text-xs">
       <div className="flex justify-between gap-2"><span>HP</span><span>{s.c.hp}/{s.c.max_hp}</span></div>
       <HpBar hp={s.c.hp} max={s.c.max_hp} />
+      <div className="mt-1 text-primary">{s.gralats} Gralats</div>
+      <div className="text-accent">{s.rounds}/12 balas</div>
       {s.prot > 0 && <div className="mt-0.5 text-accent">Protected {Math.ceil(s.prot / 1000)}s</div>}
     </div>
   );
@@ -70,10 +77,10 @@ function BaseCard({ s }: { s: Combat }) {
 }
 function AttackButton({ s, big }: { s: Combat; big?: boolean }) {
   return (
-    <button onPointerDown={(e) => { e.preventDefault(); void s.attack(); }} aria-label="Attack"
+    <Button onPointerDown={(e) => { e.preventDefault(); void s.attack(); }} aria-label="Disparar"
       className={`pixel-panel pointer-events-auto flex flex-col items-center justify-center rounded-full ${big ? "h-24 w-24 text-3xl" : "h-20 w-20 text-lg"} ${s.cool ? "opacity-50" : "text-primary"}`}>
-      ⚔<span className="text-xs">Attack</span>
-    </button>
+      ⌖<span className="text-xs">Disparar</span>
+    </Button>
   );
 }
 
@@ -86,6 +93,7 @@ export function CombatHud({ d, mapId, onAttack, landscape, hidden, onBag, info }
   const quick = (
     <>
       <IconButton icon={<Backpack />} label="Bag" onClick={onBag} />
+      <IconButton icon={<Repeat />} label="Recargar" onClick={() => void s.reload()} />
       <IconButton icon={<Cross />} label={`Heal ${s.bandages}`} onClick={s.heal} disabled={s.bandages === 0} />
       <IconButton icon={<Repeat />} label={s.weapon?.name.split(" ")[0] ?? "Fists"} onClick={s.cycle} />
     </>

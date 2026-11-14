@@ -71,6 +71,13 @@
       "when": 1794663382880,
       "tag": "0009_player_status_and_news",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794666812463,
+      "tag": "0010_gralats_and_firearms",
+      "breakpoints": true
     }
   ]
 }

@@ -660,6 +660,38 @@ export type Database = {
         }
         Relationships: []
       }
+      player_firearms: {
+        Row: {
+          gun_id: string
+          last_shot_at: string
+          reload_until: string
+          rounds: number
+          user_id: string
+        }
+        Insert: {
+          gun_id?: string
+          last_shot_at?: string
+          reload_until?: string
+          rounds?: number
+          user_id: string
+        }
+        Update: {
+          gun_id?: string
+          last_shot_at?: string
+          reload_until?: string
+          rounds?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_firearms_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       player_inventory: {
         Row: {
           equipped: boolean
@@ -753,6 +785,29 @@ export type Database = {
             columns: ["base_id"]
             isOneToOne: false
             referencedRelation: "bases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_wallets: {
+        Row: {
+          gralats: number
+          user_id: string
+        }
+        Insert: {
+          gralats?: number
+          user_id: string
+        }
+        Update: {
+          gralats?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_wallets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1196,6 +1251,10 @@ export type Database = {
       }
       am_admin: { Args: never; Returns: boolean }
       are_allied: { Args: { _a: string; _b: string }; Returns: boolean }
+      award_gralats: {
+        Args: { _amount: number; _user: string }
+        Returns: undefined
+      }
       award_hours: {
         Args: { _amount: number; _gang: string }
         Returns: undefined
@@ -1215,7 +1274,9 @@ export type Database = {
         Returns: undefined
       }
       disband_gang: { Args: never; Returns: undefined }
+      ensure_firearms: { Args: never; Returns: undefined }
       ensure_player: { Args: never; Returns: undefined }
+      equip_firearm: { Args: { _gun: string }; Returns: undefined }
       equip_weapon: { Args: { _weapon: string }; Returns: undefined }
       game_today: { Args: never; Returns: string }
       gang_of: { Args: { _user_id: string }; Returns: string }
@@ -1245,6 +1306,7 @@ export type Database = {
         Args: { _minutes: number; _user: string }
         Returns: undefined
       }
+      reload_firearm: { Args: never; Returns: undefined }
       remove_alliance: { Args: { _id: string }; Returns: undefined }
       report_state: {
         Args: { _map: string; _x: number; _y: number }
@@ -1255,6 +1317,10 @@ export type Database = {
       require_uid: { Args: never; Returns: string }
       resolve_attack: {
         Args: { _attacker: string; _target: string }
+        Returns: Json
+      }
+      resolve_firearm_shot: {
+        Args: { _aim: string; _attacker: string; _target: string }
         Returns: Json
       }
       respawn_point: {

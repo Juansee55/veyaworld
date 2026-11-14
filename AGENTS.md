@@ -37,6 +37,8 @@ use the editor.
 - Normalize uploaded Graal hats with their own direction/animation cells and trim each hat cell before fitting. Why: head templates crop different coordinates and transparent margins must not determine hat size.
 
 ## Gang system
+- Firearms use a server-selected directional target and service-role-only atomic shooting RPC; ammunition and Gralats are writable only through caller-validating SQL functions. Why: clients cannot choose damage, mint currency or bypass magazine limits.
+- Custom firearm art reuses normalized melee uploads, while firearm state lives separately from melee equipment. Why: preserve existing player art and keep shooting statistics independent of skins.
 - Clients only SELECT gang/base/combat/chat tables; every write goes through SECURITY DEFINER SQL functions that validate the caller. Why: gameplay must be server-authoritative.
 - Attacks go through the `attackPlayer` server function (wall check with the TS map data), which then calls the service-role-only `resolve_attack` SQL function. Why: walls live in TS map data, not the database.
 - Base capture/repair and hours are processed by `base_tick`, which clients call every 3 s and the server throttles globally. Why: no in-memory server state on workers.

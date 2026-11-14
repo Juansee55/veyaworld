@@ -16,6 +16,8 @@ import { BASES, captureZone } from "../bases/defs";
 import { loadMapExtras, registerCustomMap, type MapExtras, type TileRow, type WorldMapRow } from "../editor/worldData";
 import { DEFAULT_LOOK, sanitizeLook } from "../catalog";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import type { Aim } from "@/lib/game/firearm-rules";
+import type { ShotResult } from "@/lib/game/firearms.functions";
 
 export interface HudState { mapName?: string; mapId?: string; online?: number; status?: "connecting" | "online" | "offline" }
 
@@ -37,6 +39,8 @@ export interface GameContext {
   myHp: { hp: number; max: number; prot: number };
   onHud: (h: HudState) => void;
   attack: (targetId: string) => Promise<AttackResult>;
+  shoot: (aim: Aim) => Promise<ShotResult>;
+  firearms: Record<string, string>;
 }
 
 export interface WorldSnapshot { mapId: string; x: number; y: number; players: { id: string; x: number; y: number; gangId: string | null }[] }
@@ -163,7 +167,7 @@ export class WorldScene extends Phaser.Scene {
       onJoin: (p) => { this.spawnRemote(p); this.ctx.onHud({ online: this.net.onlineCount }); this.lastSentState = ""; },
       onLeave: (id) => { this.remotes.get(id)?.destroy(); this.remotes.delete(id); this.ctx.onHud({ online: this.net.onlineCount }); },
       onUpdateMeta: (p) => { const r = this.remotes.get(p.id); r?.sprite.setLook(p); this.styleRemote(p); },
-      onSwing: (p) => { const r = this.remotes.get(p.id); if (r) { r.sprite.dir = p.dir; r.sprite.swing(); } },
+      onSwing: (p) => { const r = this.remotes.get(p.id); if (r) { r.sprite.dir = p.dir; if (p.firearm) r.sprite.shoot(); else r.sprite.swing(); } },
       onHp: (h) => {
         if (h.id === this.ctx.userId) return; // own HP comes from the server row
         const r = this.remotes.get(h.id); if (!r) return;
@@ -413,6 +417,24 @@ export class WorldScene extends Phaser.Scene {
   /** Finds the closest player in front of us and asks the server to resolve the hit. */
   async attack(): Promise<string | null> {
     if (!this.me || this.attacking) return null;
+    this.attacking = true;
+    try {
+      await this.reportNow();
+      const res = await this.ctx.shoot(this.dir);
+      this.me.shoot();
+      this.net.sendSwing({ id: this.ctx.userId, dir: this.dir, firearm: true });
+      if (res.targetId) {
+        const target = this.remotes.get(res.targetId);
+        if (target) { target.sprite.flashHit(); target.sprite.setHp(res.hp, res.max_hp); this.floatText(target.sprite.x, target.sprite.y - 28, res.killed ? "K.O.!" : "-1", "#ff8a8a"); }
+        this.net.sendHp({ id: res.targetId, hp: res.killed ? res.max_hp : res.hp, max: res.max_hp });
+      }
+      return null;
+    } catch (e) { return e instanceof Error ? e.message : "No se pudo disparar"; }
+    finally { this.attacking = false; }
+  }
+
+  async meleeAttack(): Promise<string | null> {
+    if (!this.me || this.attacking) return null;
     this.me.swing();
     this.net.sendSwing({ id: this.ctx.userId, dir: this.dir });
     const v = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[this.dir];
@@ -500,9 +522,10 @@ export class WorldScene extends Phaser.Scene {
     this.anim = moving ? "walk" : "idle";
     this.me.setPosition(Math.round(this.feet.x), Math.round(this.feet.y + 3));
     this.me.setPose(this.dir, this.anim);
+    this.me.setFirearm(this.ctx.firearms[this.ctx.userId] ?? "gun_crystal");
     this.me.tick(delta);
 
-    for (const r of this.remotes.values()) r.update(performance.now(), delta);
+    for (const [id, r] of this.remotes) { r.sprite.setFirearm(this.ctx.firearms[id] ?? "gun_crystal"); r.update(performance.now(), delta); }
 
     // network send
     const x = Math.round(this.me.x), y = Math.round(this.me.y);

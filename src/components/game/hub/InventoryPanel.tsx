@@ -2,6 +2,7 @@ import { useState } from "react";
 import { rpc } from "@/lib/game/api";
 import type { GameData } from "@/lib/game/useGameData";
 import { Empty, PxButton, Row, Section } from "./ui";
+import { FirearmPanel } from "../FirearmPanel";
 
 export function InventoryPanel({ d }: { d: GameData }) {
   const [tab, setTab] = useState<"weapons" | "equipment" | "items">("weapons");
@@ -9,6 +10,7 @@ export function InventoryPanel({ d }: { d: GameData }) {
   const inv = new Map(d.myItems.map((i) => [i.item_id, i]));
   return (
     <div>
+      <FirearmPanel d={d} />
       <div className="mb-3 flex gap-1">{(["weapons", "equipment", "items"] as const).map((t) => (
         <PxButton key={t} tone={t === tab ? "primary" : "default"} className="flex-1 capitalize" onClick={() => setTab(t)}>{t}</PxButton>
       ))}</div>

@@ -10,6 +10,7 @@ import { Joystick } from "@/components/game/Joystick";
 import { Wardrobe } from "@/components/game/Wardrobe";
 import { useServerFn } from "@tanstack/react-start";
 import { attackPlayer } from "@/lib/game/combat.functions";
+import { shootFirearm } from "@/lib/game/firearms.functions";
 import { useGameData } from "@/lib/game/useGameData";
 import { onNotify } from "@/lib/game/notify";
 import { rpc } from "@/lib/game/api";
@@ -74,6 +75,10 @@ function PlayPage() {
   const look = sanitizeLook(profile);
   const d = useGameData(profile.id);
   const attackFn = useServerFn(attackPlayer);
+  const shootFn = useServerFn(shootFirearm);
+  const firearmsRef = useRef<Record<string, string>>({});
+  firearmsRef.current = Object.fromEntries(d.allFirearms.map((f) => [f.user_id, f.gun_id]));
+  useEffect(() => { ctrlRef.current?.setFirearms(firearmsRef.current); }, [d.allFirearms]);
   const [menu, setMenu] = useState<MenuTab | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; kind: string }[]>([]);
   const gangInfo: GangInfo = { gangId: d.myGang?.id ?? null, tag: d.myGang?.tag ?? null, friendly: d.allies };
@@ -106,7 +111,7 @@ function PlayPage() {
     setToasts((t) => [...t.slice(-2), { id, msg, kind }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2600);
   }), []);
-  useEffect(() => { void rpc("ensure_player").then(() => qc.invalidateQueries({ queryKey: ["g"] })); }, [qc]);
+  useEffect(() => { void rpc("ensure_player").then(() => rpc("ensure_firearms")).then(() => qc.invalidateQueries({ queryKey: ["g"] })); }, [qc]);
 
   // Push gang/ally state, base status and own HP into the running game.
   const gangKey = `${gangInfo.gangId}|${gangInfo.tag}|${gangInfo.friendly.join(",")}`;
@@ -164,6 +169,8 @@ function PlayPage() {
         gang: gangRef.current,
         myHp: hpRef.current,
         attack: (targetId) => attackFn({ data: { targetId } }),
+        shoot: async (aim) => { const result = await shootFn({ data: { aim } }); await qc.invalidateQueries({ queryKey: ["g", "firearm"] }); return result; },
+        firearms: firearmsRef.current,
         admin: adminRef.current.a,
         isAdmin: adminRef.current.on,
       });

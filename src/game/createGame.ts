@@ -4,6 +4,8 @@ import { WorldScene, type AdminFx, type AttackResult, type GameContext, type Gan
 import { loadLayerArt } from "./art/layers";
 import { loadTilesetAtlas } from "./art/tilesetArt";
 import { loadCustomMaps, registerCustomMap, type WorldMapRow, type MapExtras } from "./editor/worldData";
+import type { Aim } from "@/lib/game/firearm-rules";
+import type { ShotResult } from "@/lib/game/firearms.functions";
 
 export interface GameOptions {
   userId: string;
@@ -17,6 +19,8 @@ export interface GameOptions {
   gang: GangInfo;
   myHp: { hp: number; max: number; prot: number };
   attack: (targetId: string) => Promise<AttackResult>;
+  shoot: (aim: Aim) => Promise<ShotResult>;
+  firearms: Record<string, string>;
   admin: Record<string, AdminFx>;
   isAdmin: boolean;
 }
@@ -28,6 +32,7 @@ export interface GameController {
   setAdmin(admin: Record<string, AdminFx>, isAdmin: boolean): void;
   say(userId: string, text: string): void;
   setMyHp(hp: number, max: number, prot: number): void;
+  setFirearms(guns: Record<string, string>): void;
   respawn(mapId: string, x: number, y: number): void;
   attack(): Promise<string | null>;
   /** Did a tap at these viewport coordinates hit the local player? */
@@ -70,6 +75,7 @@ export async function createGame(parent: HTMLElement, opts: GameOptions): Promis
     userId: opts.userId, username: opts.username, look: opts.look, onHud: opts.onHud,
     gang: opts.gang, zones: {}, myHp: opts.myHp, attack: opts.attack,
     admin: opts.admin, isAdmin: opts.isAdmin,
+    shoot: opts.shoot, firearms: opts.firearms,
   };
   game.registry.set("ctx", ctx);
   const start: WorldSceneData = { mapId: opts.mapId, x: opts.x, y: opts.y, dir: opts.dir };
@@ -81,6 +87,7 @@ export async function createGame(parent: HTMLElement, opts: GameOptions): Promis
 
   return {
     setLook(look, username) { scene()?.applyLook(look, username); },
+    setFirearms(guns) { ctx.firearms = guns; },
     setGang(info) { ctx.gang = info; const s = scene(); if (s?.sys.isActive()) s.setGang(info); },
     say(id, t) { const s = scene(); if (s?.sys.isActive()) s.say(id, t); },
     setAdmin(a, isAdmin) { ctx.admin = a; ctx.isAdmin = isAdmin; const s = scene(); if (s?.sys.isActive()) s.setAdmin(a, isAdmin); },

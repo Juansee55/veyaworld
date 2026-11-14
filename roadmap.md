@@ -1,5 +1,11 @@
 # Veya World roadmap
 
+## Gralats and firearms
+- [ ] Persistent Gralats balance and administrator awards
+- [ ] Add the three supplied guns, visible beside players, with shooting and reload
+- [ ] Custom firearm uploads; enforce 1 damage and 12 rounds on the server
+- [ ] Verify uploads, firing, reload, balance and permissions
+
 ## Social menu and mobile view
 - [ ] Menu with news and admin-only publishing
 - [ ] View other player profiles and edit own text status

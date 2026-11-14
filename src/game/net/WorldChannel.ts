@@ -11,7 +11,7 @@ export interface PresenceMeta extends Look {
   tag: string | null;
 }
 
-export interface SwingPacket { id: string; dir: Direction }
+export interface SwingPacket { id: string; dir: Direction; firearm?: boolean }
 export interface HpPacket { id: string; hp: number; max: number; prot?: number }
 
 export interface MovePacket {
