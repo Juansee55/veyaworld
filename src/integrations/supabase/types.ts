@@ -798,6 +798,7 @@ export type Database = {
           melee_id: string
           pos_x: number
           pos_y: number
+          status_text: string
           updated_at: string
           username: string
         }
@@ -812,6 +813,7 @@ export type Database = {
           melee_id?: string
           pos_x?: number
           pos_y?: number
+          status_text?: string
           updated_at?: string
           username?: string
         }
@@ -826,6 +828,7 @@ export type Database = {
           melee_id?: string
           pos_x?: number
           pos_y?: number
+          status_text?: string
           updated_at?: string
           username?: string
         }
@@ -995,6 +998,41 @@ export type Database = {
         }
         Relationships: []
       }
+      world_news: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          image_path: string | null
+          title: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          image_path?: string | null
+          title: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          image_path?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_news_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       world_npcs: {
         Row: {
           body_id: string
@@ -1036,6 +1074,8 @@ export type Database = {
       }
       world_props: {
         Row: {
+          display_h: number | null
+          display_w: number | null
           furniture_id: string
           id: string
           map_id: string
@@ -1043,6 +1083,8 @@ export type Database = {
           y: number
         }
         Insert: {
+          display_h?: number | null
+          display_w?: number | null
           furniture_id: string
           id?: string
           map_id: string
@@ -1050,6 +1092,8 @@ export type Database = {
           y: number
         }
         Update: {
+          display_h?: number | null
+          display_w?: number | null
           furniture_id?: string
           id?: string
           map_id?: string
@@ -1146,6 +1190,10 @@ export type Database = {
     }
     Functions: {
       active_ally_count: { Args: { _g: string }; Returns: number }
+      admin_drag_player: {
+        Args: { _map: string; _user: string; _x: number; _y: number }
+        Returns: undefined
+      }
       am_admin: { Args: never; Returns: boolean }
       are_allied: { Args: { _a: string; _b: string }; Returns: boolean }
       award_hours: {

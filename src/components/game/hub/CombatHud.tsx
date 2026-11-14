@@ -94,10 +94,10 @@ export function CombatHud({ d, mapId, onAttack, landscape, hidden, onBag, info }
 
   if (landscape) return (
     <>
-      <div className="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 items-start gap-2" style={{ top: "max(8px, env(safe-area-inset-top))" }}>
+      <div className="pointer-events-none absolute left-3 z-10 flex max-w-[calc(100%-110px)] items-start gap-2" style={{ top: "calc(max(8px, env(safe-area-inset-top)) + 64px)" }}>
         {info}
-        <div className="w-36"><HpCard s={s} /></div>
-        {s.base && <div className="w-40"><BaseCard s={s} /></div>}
+        <div className="w-28 shrink-0"><HpCard s={s} /></div>
+        {s.base && <div className="hidden w-32 min-w-0 lg:block"><BaseCard s={s} /></div>}
       </div>
       <div className="pointer-events-none absolute z-10 flex flex-col gap-2"
         style={{ top: "max(8px, env(safe-area-inset-top))", right: "max(12px, env(safe-area-inset-right))" }}>{quick}</div>

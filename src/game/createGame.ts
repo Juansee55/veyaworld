@@ -37,6 +37,12 @@ export interface GameController {
   tileAt(clientX: number, clientY: number): { mapId: string; x: number; y: number } | null;
   myTile(): { mapId: string; x: number; y: number } | null;
   extras(): MapExtras | null;
+  playerAt(clientX: number, clientY: number): string | null;
+  previewPlayer(id: string, x: number, y: number): void;
+  previewProp(id: string, x: number, y: number): void;
+  pan(dx: number, dy: number): void;
+  zoomAt(clientX: number, clientY: number, factor: number): void;
+  refreshEditor(): Promise<void>;
   showEditGrid(on: boolean): void;
   tilesetUrl(): string | null;
   goto(mapId: string, x: number, y: number): void;
@@ -94,6 +100,12 @@ export async function createGame(parent: HTMLElement, opts: GameOptions): Promis
     },
     myTile() { const s = scene(); return s?.sys.isActive() ? s.myTile() : null; },
     extras() { const s = scene(); return s?.sys.isActive() ? s.extrasNow() : null; },
+    playerAt(cx, cy) { const s = scene(); if (!s?.sys.isActive()) return null; const r = parent.getBoundingClientRect(); return s.playerAt(cx - r.left, cy - r.top); },
+    previewPlayer(id, x, y) { scene()?.previewPlayer(id, x, y); },
+    previewProp(id, x, y) { scene()?.previewProp(id, x, y); },
+    pan(dx, dy) { scene()?.pan(dx, dy); },
+    zoomAt(cx, cy, factor) { const r = parent.getBoundingClientRect(); scene()?.zoomAt(cx - r.left, cy - r.top, factor); },
+    async refreshEditor() { await scene()?.reloadExtras(); },
     showEditGrid(on) { const s = scene(); if (s?.sys.isActive()) s.showEditGrid(on); },
     tilesetUrl() {
       if (!game.textures.exists("tileset")) return null;

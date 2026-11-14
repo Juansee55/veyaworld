@@ -5,14 +5,15 @@ import { fmtHs } from "@/lib/game/api";
 import type { GameData } from "@/lib/game/useGameData";
 import { CharacterCanvas, HEAD_CROP } from "./CharacterCanvas";
 import { GangBadge } from "./hub/ui";
+import { PxButton } from "./hub/ui";
 
 const ROLE: Record<string, string> = { leader: "Leader", officer: "Officer", member: "Member" };
 const TURN: Direction[] = ["down", "left", "up", "right"];
 
 /** Opens when you tap your own character: who you are, your gang, health and gear. */
-export function ProfileCard({ d, look, username, mapName, landscape, buttonsHidden, onClose, onEdit, onBag, onToggleButtons, onExit, onSecret }: {
+export function ProfileCard({ d, look, username, mapName, landscape, buttonsHidden, onClose, onEdit, onBag, onToggleButtons, onExit, onSecret, onStatus }: {
   d: GameData; look: Look; username: string; mapName: string; landscape: boolean; buttonsHidden: boolean;
-  onClose: () => void; onEdit: () => void; onBag: () => void; onToggleButtons: () => void; onExit: () => void; onSecret?: () => void;
+  onClose: () => void; onEdit: () => void; onBag: () => void; onToggleButtons: () => void; onExit: () => void; onSecret?: () => void; onStatus: () => void;
 }) {
   const [turn, setTurn] = useState(0);
   const [walking, setWalking] = useState(false);
@@ -70,6 +71,7 @@ export function ProfileCard({ d, look, username, mapName, landscape, buttonsHidd
               <button aria-label="Turn right" onClick={() => setTurn((t) => t + 1)} className="pixel-panel p-1.5 text-foreground"><ChevronRight /></button>
             </div>
             <span className="text-xs text-muted-foreground">Facing {dir}</span>
+            <PxButton onClick={onStatus}>Estado</PxButton>
           </div>
           <button onClick={onBag} className="flex flex-col items-center gap-2 text-center">
             <span className="text-xs text-muted-foreground">Tap for<br />inventory</span>

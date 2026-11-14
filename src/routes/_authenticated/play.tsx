@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, Map as MapIcon, Shirt, Shield, LogOut, Eye } from "lucide-react";
+import { MessageSquare, Map as MapIcon, Shirt, Shield, LogOut, Eye, Menu as MenuIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { isDirection, sanitizeLook, type Look } from "@/game/catalog";
 import type { GameController } from "@/game/createGame";
@@ -23,7 +23,11 @@ import { AdminPanel } from "@/components/game/AdminPanel";
 import { useLandscape } from "@/hooks/use-landscape";
 import { Button } from "@/components/ui/button";
 import { notify } from "@/lib/game/notify";
-import { MapEditor } from "@/components/game/MapEditor";
+import { MapEditor, type EditorDrag } from "@/components/game/MapEditor";
+
+import { MainMenu } from "@/components/game/MainMenu";
+import { NewsPanel } from "@/components/game/NewsPanel";
+import { PlayerProfile } from "@/components/game/PlayerProfile";
 
 const profileQuery = queryOptions({
   queryKey: ["my-profile"],
@@ -82,8 +86,16 @@ function PlayPage() {
   const [buttonsHidden, setButtonsHidden] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [mainMenu, setMainMenu] = useState(false);
+  const [newsOpen, setNewsOpen] = useState(false);
+  const [viewPlayer, setViewPlayer] = useState<string | null>(null);
+  const touchPoints = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ distance: number; x: number; y: number } | null>(null);
+  const pinchUsed = useRef(false);
   const editorTapRef = useRef<((t: { mapId: string; x: number; y: number }) => void) | null>(null);
-  const overlayOpen = !!menu || wardrobe || profileOpen || mapOpen || adminOpen;
+  const editorDragRef = useRef<EditorDrag | null>(null);
+  const draggingPointer = useRef<number | null>(null);
+  const overlayOpen = !!menu || wardrobe || profileOpen || mapOpen || adminOpen || mainMenu || newsOpen || !!viewPlayer;
   const adminRef = useRef({ a: d.admin, on: d.isAdmin }); adminRef.current = { a: d.admin, on: d.isAdmin };
   const tapRef = useRef<{ x: number; y: number; t: number; id: number } | null>(null);
   const getSnapshot = useCallback(() => ctrlRef.current?.snapshot() ?? null, []);
@@ -187,8 +199,42 @@ function PlayPage() {
   })();
 
   // Tap (not drag) on your own character opens your profile.
-  const onDown = (e: React.PointerEvent) => { tapRef.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId }; };
+  const onDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("button, input, textarea, select, a, [data-editor-panel]")) return;
+    if (overlayOpen) return;
+    if (e.pointerType === "touch") {
+      touchPoints.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touchPoints.current.size === 2) {
+        editorDragRef.current?.cancel(); draggingPointer.current = null; tapRef.current = null;
+        const [a, b] = [...touchPoints.current.values()];
+        if (a && b) pinch.current = { distance: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        pinchUsed.current = true; e.currentTarget.setPointerCapture(e.pointerId); return;
+      }
+    }
+    if (editorOpen && d.isAdmin && editorDragRef.current?.down(e.clientX, e.clientY)) {
+      draggingPointer.current = e.pointerId; e.currentTarget.setPointerCapture(e.pointerId); tapRef.current = null; return;
+    }
+    tapRef.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (touchPoints.current.has(e.pointerId)) touchPoints.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const prev = pinch.current;
+    if (prev && touchPoints.current.size === 2) {
+      const [a, b] = [...touchPoints.current.values()]; if (!a || !b) return;
+      const distance = Math.hypot(a.x - b.x, a.y - b.y), x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+      if (prev.distance > 0) ctrlRef.current?.zoomAt(x, y, distance / prev.distance);
+      ctrlRef.current?.pan(x - prev.x, y - prev.y); pinch.current = { distance, x, y }; return;
+    }
+    if (draggingPointer.current === e.pointerId) editorDragRef.current?.move(e.clientX, e.clientY);
+  };
+  const cancelDrag = () => { draggingPointer.current = null; editorDragRef.current?.cancel(); tapRef.current = null; touchPoints.current.clear(); pinch.current = null; pinchUsed.current = false; };
   const onUp = (e: React.PointerEvent) => {
+    touchPoints.current.delete(e.pointerId);
+    if (pinchUsed.current) { pinch.current = null; tapRef.current = null; if (touchPoints.current.size === 0) pinchUsed.current = false; return; }
+    if (draggingPointer.current === e.pointerId) {
+      draggingPointer.current = null; editorDragRef.current?.up(e.clientX, e.clientY);
+      e.currentTarget.releasePointerCapture(e.pointerId); return;
+    }
     const s = tapRef.current; tapRef.current = null;
     if (!s || s.id !== e.pointerId) return;
     if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 12 || performance.now() - s.t > 400) return;
@@ -202,6 +248,7 @@ function PlayPage() {
     }
     if (overlayOpen) return;
     if (ctrlRef.current?.hitTestSelf(e.clientX, e.clientY)) setProfileOpen(true);
+    else { const id = ctrlRef.current?.playerAt(e.clientX, e.clientY); if (id) setViewPlayer(id); }
   };
 
   const info = (
@@ -215,6 +262,7 @@ function PlayPage() {
   );
   const menuButtons = (
     <>
+      <IconButton icon={<MenuIcon />} label="Menú" onClick={() => setMainMenu(true)} />
       <IconButton icon={<MessageSquare />} label="Chat" onClick={() => setMenu("chat")} />
       <IconButton icon={<Shield />} label="Gang" tone="primary" badge={invites} onClick={() => setMenu("gang")} />
       <IconButton icon={<MapIcon />} label="Map" onClick={() => setMapOpen(true)} />
@@ -223,7 +271,7 @@ function PlayPage() {
   );
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-background touch-none select-none" onPointerDownCapture={onDown} onPointerUpCapture={onUp}>
+    <div className="fixed inset-0 overflow-hidden bg-background touch-none select-none" onPointerDownCapture={onDown} onPointerMoveCapture={onMove} onPointerUpCapture={onUp} onPointerCancelCapture={cancelDrag}>
       <div ref={hostRef} className="absolute inset-0" />
       {gameError && <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-background px-6 text-center">
         <p className="text-lg text-destructive">The world could not load.</p>
@@ -234,13 +282,13 @@ function PlayPage() {
         <Button variant="ghost" onClick={() => setButtonsHidden(false)} aria-label="Show buttons" className="pixel-panel absolute z-10 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground"
           style={{ top: "max(8px, env(safe-area-inset-top))", left: "max(8px, env(safe-area-inset-left))" }}><Eye className="h-4 w-4" />Show buttons</Button>
       ) : landscape ? (
-        <div className="pointer-events-none absolute z-10 grid grid-cols-2 gap-2"
+        <div className="pointer-events-none absolute z-10 flex gap-1"
           style={{ top: "max(8px, env(safe-area-inset-top))", left: "max(12px, env(safe-area-inset-left))" }}>{menuButtons}</div>
       ) : (
         <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 p-3"
           style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}>
-          <div className="min-w-0">{info}</div>
-          <div className="flex gap-1.5">
+          <div className="min-w-0 max-[460px]:col-span-2">{info}</div>
+          <div className="flex gap-1.5 max-[460px]:col-span-2 max-[460px]:justify-end">
             {menuButtons}
             <IconButton icon={<LogOut />} label="Exit" onClick={signOut} size="sm" />
           </div>
@@ -254,15 +302,19 @@ function PlayPage() {
           <div key={t.id} className={`pixel-panel px-3 py-1.5 text-sm ${t.kind === "error" ? "text-destructive" : "text-accent"}`}>{t.msg}</div>
         ))}
       </div>
+      {mainMenu && <MainMenu selfId={profile.id} onClose={() => setMainMenu(false)} onNews={() => { setMainMenu(false); setNewsOpen(true); }} onProfile={(id) => { setMainMenu(false); setViewPlayer(id); }} onMap={() => { setMainMenu(false); setMapOpen(true); }} onGang={() => { setMainMenu(false); setMenu("gang"); }} onChat={() => { setMainMenu(false); setMenu("chat"); }} onWardrobe={() => { setMainMenu(false); setWardrobe(true); }} />}
+      {newsOpen && <NewsPanel isAdmin={d.isAdmin} userId={profile.id} onClose={() => setNewsOpen(false)} />}
+      {viewPlayer && <PlayerProfile userId={viewPlayer} selfId={profile.id} onClose={() => setViewPlayer(null)} />}
       {mapOpen && <WorldMap d={d} online={hud.online ?? 1} getSnapshot={getSnapshot} onClose={() => setMapOpen(false)} />}
       {profileOpen && (
         <ProfileCard d={d} look={look} username={profile.username} mapName={hud.mapName ?? ""} landscape={landscape} buttonsHidden={buttonsHidden}
           onClose={() => setProfileOpen(false)} onEdit={() => { setProfileOpen(false); setWardrobe(true); }}
           onBag={() => { setProfileOpen(false); setMenu("bag"); }} onToggleButtons={() => setButtonsHidden((h) => !h)} onExit={signOut}
+          onStatus={() => { setProfileOpen(false); setViewPlayer(profile.id); }}
           onSecret={() => { if (d.isAdmin) { setProfileOpen(false); setAdminOpen(true); } }} />
       )}
       {adminOpen && d.isAdmin && <AdminPanel fx={d.admin[profile.id]} onClose={() => setAdminOpen(false)} onWorldEdit={() => { setAdminOpen(false); setEditorOpen(true); }} />}
-      {editorOpen && d.isAdmin && <MapEditor ctrl={getController} tapRef={editorTapRef} onClose={() => { setEditorOpen(false); editorTapRef.current = null; }} />}
+      {editorOpen && d.isAdmin && <MapEditor ctrl={getController} tapRef={editorTapRef} dragRef={editorDragRef} onClose={() => { cancelDrag(); setEditorOpen(false); editorTapRef.current = null; editorDragRef.current = null; }} />}
       {menu && <GameMenu d={d} userId={profile.id} initial={menu} onClose={() => setMenu(null)} />}
       {wardrobe && (
         <Wardrobe look={look} username={profile.username} saving={saving} onClose={() => setWardrobe(false)} onSave={saveLook} />

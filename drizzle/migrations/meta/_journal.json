@@ -57,6 +57,20 @@
       "when": 1794624535999,
       "tag": "0007_world_editor_uploaded_art",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794662636322,
+      "tag": "0008_expanded_world_editor",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794663382880,
+      "tag": "0009_player_status_and_news",
+      "breakpoints": true
     }
   ]
 }

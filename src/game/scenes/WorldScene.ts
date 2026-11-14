@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
 import { worldArtUrl } from "@/lib/game/world-art";
+import { propSize } from "@/lib/game/editor-rules";
 import { supabase } from "@/integrations/supabase/client";
 import { facingFromVector, normalizeInput, type AnimState, type Direction, type Look } from "../catalog";
 import { ensureLayerTexture, layerKeys } from "../art/layers";
@@ -262,9 +263,34 @@ export class WorldScene extends Phaser.Scene {
   }
   myTile() { return { mapId: this.map?.id ?? "", x: Math.floor((this.me?.x ?? 0) / TILE), y: Math.floor(((this.me?.y ?? 0) - 3) / TILE) }; }
   extrasNow() { return this.extras; }
+  playerAt(sx: number, sy: number) {
+    const p = this.cameras.main.getWorldPoint(sx, sy);
+    const entries = [[this.ctx.userId, this.me], ...[...this.remotes].map(([id, r]) => [id, r.sprite])] as [string, CharacterSprite][];
+    return entries.find(([, s]) => Math.abs(p.x - s.x) <= 14 && p.y >= s.y - 32 && p.y <= s.y + 5)?.[0] ?? null;
+  }
+  previewPlayer(id: string, x: number, y: number) {
+    if (!this.ctx.isAdmin) return;
+    const r = this.remotes.get(id);
+    if (r) r.push({ id, x, y, dir: "down", anim: "idle" });
+  }
+  previewProp(id: string, x: number, y: number) {
+    if (!this.ctx.isAdmin) return;
+    const p = this.extras.props.find((p) => p.id === id); if (!p) return;
+    p.x = x; p.y = y; this.rebuildObjects();
+  }
+  pan(dx: number, dy: number) {
+    const cam = this.cameras.main; cam.stopFollow();
+    cam.scrollX -= dx / cam.zoom; cam.scrollY -= dy / cam.zoom;
+  }
+  zoomAt(sx: number, sy: number, factor: number) {
+    const cam = this.cameras.main, before = cam.getWorldPoint(sx, sy);
+    cam.stopFollow(); cam.setZoom(Math.max(0.5, Math.min(8, cam.zoom * factor)));
+    const after = cam.getWorldPoint(sx, sy);
+    cam.scrollX += before.x - after.x; cam.scrollY += before.y - after.y;
+  }
   showEditGrid(on: boolean) {
     this.editGfx?.destroy(); this.editGfx = undefined;
-    if (!on) return;
+    if (!on) { this.cameras.main.startFollow(this.me, true, 1, 1); return; }
     const g = this.add.graphics().setDepth(99999);
     g.lineStyle(1, 0xffffff, 0.12);
     for (let x = 0; x <= this.map.width; x++) g.lineBetween(x * TILE, 0, x * TILE, this.map.height * TILE);
@@ -281,7 +307,7 @@ export class WorldScene extends Phaser.Scene {
     this.map.layers[L][t.y * this.map.width + t.x] = t.tile;
   }
 
-  private async reloadExtras() {
+  async reloadExtras() {
     const mapId = this.map.id;
     const ex = await loadMapExtras(mapId);
     if (!this.sys.isActive() || this.map.id !== mapId) return;
@@ -293,8 +319,18 @@ export class WorldScene extends Phaser.Scene {
         const url = await worldArtUrl(a.path);
         await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("Image unavailable")); image.src = url; });
         if (!this.sys.isActive()) return;
-        const texture = this.textures.addImage(key, image);
-        if (texture && a.kind === "tileset") for (let i = 0; i < a.width / 16; i++) texture.add(i, 0, i * 16, 0, 16, 16);
+        if (a.kind === "tileset") {
+          const cols = Math.ceil(a.width / TILE), rows = Math.ceil(a.height / TILE);
+          // Individual textures avoid GPU atlas-size limits and pad partial edge tiles.
+          for (let i = 0; i < cols * rows; i++) {
+            const tileKey = `${key}-${i}`;
+            if (this.textures.exists(tileKey)) continue;
+            const canvas = document.createElement("canvas"); canvas.width = TILE; canvas.height = TILE;
+            const ctx = canvas.getContext("2d"); if (!ctx) continue;
+            ctx.drawImage(image, (i % cols) * TILE, Math.floor(i / cols) * TILE, TILE, TILE, 0, 0, TILE, TILE);
+            this.textures.addCanvas(tileKey, canvas);
+          }
+        } else this.textures.addImage(key, image);
       } catch { /* Missing custom art must not stop gameplay. */ }
     }));
     if (!this.sys.isActive() || this.map.id !== mapId) return;
@@ -310,21 +346,26 @@ export class WorldScene extends Phaser.Scene {
     this.propBodies?.clear(true, true);
     for (const t of this.extras.tiles) {
       if (!t.asset_id) continue;
-      const key = `world-art-${t.asset_id}`;
-      if (this.textures.exists(key)) this.extraObjs.push(this.add.image(t.x * TILE + 8, t.y * TILE + 8, key, t.tile).setDepth(t.layer === "above" ? 100000 : t.layer === "objects" ? 3 : t.layer === "decor" ? 1 : 0));
+      const key = `world-art-${t.asset_id}-${t.tile}`;
+      if (this.textures.exists(key)) this.extraObjs.push(this.add.image(t.x * TILE + 8, t.y * TILE + 8, key).setDepth(t.layer === "above" ? 100000 : t.layer === "objects" ? 3 : t.layer === "decor" ? 1 : 0));
       if (t.solid) { const z = this.add.zone(t.x * TILE + 8, t.y * TILE + 8, TILE, TILE); this.propBodies?.add(z); this.extraObjs.push(z); }
     }
     const fur = new Map(this.extras.furniture.map((f) => [f.id, f]));
     for (const p of this.extras.props) {
       const f = fur.get(p.furniture_id); if (!f) continue;
+      const size = propSize(p, f), scaleX = size.w / f.w, scaleY = size.h / f.h;
       const key = f.asset_id ? `world-art-${f.asset_id}` : "";
-      if (key && this.textures.exists(key)) this.extraObjs.push(this.add.image(p.x * TILE, p.y * TILE, key).setOrigin(0).setDepth(10 + (p.y + f.h) * TILE));
+      if (key && this.textures.exists(key)) this.extraObjs.push(this.add.image(p.x * TILE, p.y * TILE, key).setOrigin(0).setDisplaySize(size.w * TILE, size.h * TILE).setDepth(10 + (p.y + size.h) * TILE));
+      if (f.asset_id) {
+        if (f.solid[0]) { const z = this.add.zone((p.x + size.w / 2) * TILE, (p.y + size.h / 2) * TILE, size.w * TILE, size.h * TILE); this.propBodies?.add(z); this.extraObjs.push(z); }
+        continue;
+      }
       for (let j = 0; j < f.h; j++) for (let i = 0; i < f.w; i++) {
         const k = j * f.w + i, tile = f.tiles[k] ?? 0;
-        const x = (p.x + i) * TILE, y = (p.y + j) * TILE;
-        if (!f.asset_id && tile > 0) this.extraObjs.push(this.add.image(x + 8, y + 8, "tileset", `t${tile}`).setDepth(10 + y + TILE));
+        const x = (p.x + i * scaleX) * TILE, y = (p.y + j * scaleY) * TILE;
+        if (tile > 0) this.extraObjs.push(this.add.image(x + 8 * scaleX, y + 8 * scaleY, "tileset", `t${tile}`).setScale(scaleX, scaleY).setDepth(10 + y + TILE));
         if (f.solid[k]) {
-          const z = this.add.zone(x + 8, y + 8, TILE, TILE);
+          const z = this.add.zone(x + 8 * scaleX, y + 8 * scaleY, TILE * scaleX, TILE * scaleY);
           this.propBodies?.add(z); this.extraObjs.push(z);
         }
       }

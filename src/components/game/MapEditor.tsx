@@ -8,10 +8,15 @@ import { PxButton, PxInput } from "./hub/ui";
 import { uploadWorldArt, worldArtUrl, type WorldAsset } from "@/lib/game/world-art";
 import { Upload } from "lucide-react";
 import { BASES, roomMapId } from "@/game/bases/defs";
+import houseImage from "@/assets/custom-haunted-house.png";
+import { propSize } from "@/lib/game/editor-rules";
+import { dragPlayer } from "@/lib/game/editor.functions";
+import { useServerFn } from "@tanstack/react-start";
 
-type Tool = "tile" | "prop" | "npc" | "warp" | "remove" | "maps" | "furniture" | "house";
+type Tool = "tile" | "prop" | "npc" | "warp" | "remove" | "maps" | "furniture" | "house" | "move" | "players" | "pan";
 type Layer = "ground" | "decor" | "objects" | "above";
 type Tap = { mapId: string; x: number; y: number };
+export interface EditorDrag { down(x: number, y: number): boolean; move(x: number, y: number): void; up(x: number, y: number): void; cancel(): void }
 interface Fur { id: string; name: string; w: number; h: number; tiles: number[]; solid: boolean[]; asset_id?: string | null }
 interface WMap { id: string; name: string; width: number; height: number; spawn_x: number; spawn_y: number }
 
@@ -25,7 +30,7 @@ function TileSwatch({ url, id, size = 28, cols = COLS, custom = false }: { url: 
 }
 
 /** Staff world editor. Taps on the map are routed here while it is open; every change is saved and broadcast live. */
-export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameController | null; tapRef: MutableRefObject<((t: Tap) => void) | null>; onClose: () => void }) {
+export function MapEditor({ ctrl, tapRef, dragRef, onClose }: { ctrl: () => GameController | null; tapRef: MutableRefObject<((t: Tap) => void) | null>; dragRef: MutableRefObject<EditorDrag | null>; onClose: () => void }) {
   const [tool, setTool] = useState<Tool>("tile");
   const [layer, setLayer] = useState<Layer>("ground");
   const [tile, setTile] = useState(1);
@@ -44,6 +49,12 @@ export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameControlle
   const [busy, setBusy] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [blank, setBlank] = useState(true);
+  const [house, setHouse] = useState({ name: "Casa", w: 12, h: 12, style: "haunted" });
+  const [selectedProp, setSelectedProp] = useState("");
+  const [objectSize, setObjectSize] = useState({ w: 4, h: 4 });
+  const [destination, setDestination] = useState("village");
+  const dragging = useRef<{ id: string; player: boolean; x: number; y: number; offsetX: number; offsetY: number; original: Tap; pan?: boolean } | null>(null);
+  const movePlayer = useServerFn(dragPlayer);
   const uploadRef = useRef<HTMLInputElement>(null);
   const uploadKind = useRef<"tileset" | "object">("tileset");
   const selectedAsset = assets.find((a) => a.id === assetId);
@@ -61,8 +72,8 @@ export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameControlle
     try {
       const a = await uploadWorldArt(file, uploadKind.current);
       if (a.kind === "object") {
-        const w = a.width / 16, h = a.height / 16;
-        const { data, error } = await supabase.from("world_furniture").insert({ name: a.name, w, h, tiles: Array(w * h).fill(0), solid: Array(w * h).fill(blocked), asset_id: a.id }).select().single();
+        const w = Math.ceil(a.width / 16), h = Math.ceil(a.height / 16);
+        const { data, error } = await supabase.from("world_furniture").insert({ name: a.name, w, h, tiles: [0], solid: [blocked], asset_id: a.id }).select().single();
         if (error) throw error;
         setFurId(data.id); setTool("prop"); loadFur();
       } else { setAssetId(a.id); setTile(0); setTool("tile"); }
@@ -90,6 +101,61 @@ export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameControlle
     ...maps,
   ], [maps]);
 
+  const placed = () => {
+    const ex = ctrl()?.extras();
+    return (ex?.props ?? []).flatMap((p) => { const f = ex?.furniture.find((f) => f.id === p.furniture_id); return f ? [{ ...p, ...propSize(p, f), name: f.name }] : []; });
+  };
+  const refresh = () => ctrl()?.refreshEditor();
+  const saveObjectSize = async () => {
+    if (!selectedProp || !Number.isFinite(objectSize.w) || !Number.isFinite(objectSize.h) || objectSize.w <= 0 || objectSize.h <= 0) return;
+    const p = placed().find((p) => p.id === selectedProp); const m = ctrl()?.myTile();
+    if (!p || !m) return;
+    const c = maps.find((map) => map.id === m.mapId);
+    if (c && (p.x + objectSize.w > c.width || p.y + objectSize.h > c.height)) return notify("El objeto no cabe en el mapa", "error");
+    ok((await supabase.from("world_props").update({ display_w: objectSize.w, display_h: objectSize.h }).eq("id", selectedProp)).error, "Tamaño guardado"); await refresh();
+  };
+  dragRef.current = {
+    down(x, y) {
+      if (!["move", "players", "pan"].includes(tool)) return false;
+      const t = ctrl()?.tileAt(x, y); if (!t) return false;
+      if (tool === "pan") { dragging.current = { id: "", player: false, x, y, offsetX: 0, offsetY: 0, original: t, pan: true }; return true; }
+      const player = tool === "players";
+      const p = !player ? placed().reverse().find((p) => t.x >= p.x && t.x < p.x + p.w && t.y >= p.y && t.y < p.y + p.h) : null;
+      const id = player ? ctrl()?.playerAt(x, y) : p?.id;
+      if (!id) return true;
+      if (p) { setSelectedProp(p.id); setObjectSize({ w: p.w, h: p.h }); setDestination(t.mapId); }
+      dragging.current = { id, player, x, y, offsetX: p ? t.x - p.x : 0, offsetY: p ? t.y - p.y : 0, original: { mapId: t.mapId, x: p?.x ?? t.x, y: p?.y ?? t.y } };
+      return true;
+    },
+    move(x, y) {
+      const d = dragging.current; if (!d) return;
+      if (d.pan) { ctrl()?.pan(x - d.x, y - d.y); d.x = x; d.y = y; return; }
+      const t = ctrl()?.tileAt(x, y); if (!t) return;
+      if (d.player) ctrl()?.previewPlayer(d.id, t.x * 16 + 8, t.y * 16 + 8);
+      else ctrl()?.previewProp(d.id, Math.max(0, t.x - d.offsetX), Math.max(0, t.y - d.offsetY));
+    },
+    up(x, y) {
+      const d = dragging.current; dragging.current = null;
+      if (!d || d.pan) return;
+      const t = ctrl()?.tileAt(x, y); if (!t) return;
+      void (async () => {
+        try {
+          if (d.player) await movePlayer({ data: { userId: d.id, mapId: t.mapId, x: t.x * 16 + 8, y: t.y * 16 + 8 } });
+          else {
+            const p = placed().find((p) => p.id === d.id); if (!p) return;
+            const m = maps.find((m) => m.id === t.mapId);
+            const nx = Math.max(0, Math.min(t.x - d.offsetX, (m?.width ?? 200) - p.w));
+            const ny = Math.max(0, Math.min(t.y - d.offsetY, (m?.height ?? 200) - p.h));
+            const { error } = await supabase.from("world_props").update({ x: nx, y: ny }).eq("id", d.id); if (error) throw error;
+          }
+          notify(d.player ? "Jugador movido" : "Objeto movido");
+        } catch (e) { notify(e instanceof Error ? e.message : "No se pudo mover", "error"); }
+        finally { await refresh(); }
+      })();
+    },
+    cancel() { dragging.current = null; void refresh(); },
+  };
+
   tapRef.current = async (t: Tap) => {
     const current = maps.find((m) => m.id === t.mapId);
     if (t.x < 0 || t.y < 0 || (current && (t.x >= current.width || t.y >= current.height))) return;
@@ -97,10 +163,28 @@ export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameControlle
       const { error } = await supabase.from("world_tiles").upsert({ map_id: t.mapId, layer, x: t.x, y: t.y, tile, asset_id: assetId || null, solid: !!assetId && blocked });
       ok(error);
     } else if (tool === "house") {
-      if (current && (t.x + 5 > current.width || t.y + 4 > current.height)) return notify("La casa no cabe aquí", "error");
-      const rows = [];
-      for (let y = 0; y < 4; y++) for (let x = 0; x < 5; x++) rows.push({ map_id: t.mapId, layer: "objects", x: t.x + x, y: t.y + y, tile: y === 0 ? T.ROOF : y === 1 ? T.ROOF_EDGE : y === 3 && x === 2 ? T.DOORWAY : T.WALL, asset_id: null, solid: false });
-      ok((await supabase.from("world_tiles").upsert(rows)).error, "Casa creada");
+      if (busy) return;
+      if (current && (t.x + house.w > current.width || t.y + house.h > current.height)) return notify("La casa no cabe aquí", "error");
+      setBusy(true);
+      try {
+        if (house.style === "tiles") {
+          const rows = [];
+          for (let y = 0; y < house.h; y++) for (let x = 0; x < house.w; x++) rows.push({ map_id: t.mapId, layer: "objects", x: t.x + x, y: t.y + y, tile: y < Math.floor(house.h / 2) ? T.ROOF : y === Math.floor(house.h / 2) ? T.ROOF_EDGE : y === house.h - 1 && x === Math.floor(house.w / 2) ? T.DOORWAY : T.WALL, asset_id: null, solid: false });
+          ok((await supabase.from("world_tiles").upsert(rows)).error, "Casa creada");
+        } else {
+          let a = assets.find((a) => a.id === house.style);
+          if (house.style === "haunted") {
+            a = assets.find((a) => a.name === "Casa de tres tejados.png");
+            if (!a) { const response = await fetch(houseImage); if (!response.ok) throw new Error("No se pudo cargar la casa"); a = await uploadWorldArt(new File([await response.blob()], "Casa de tres tejados.png", { type: "image/png" }), "object"); await loadAssets(); }
+          }
+          if (!a) throw new Error("Seleccioná una imagen para la casa");
+          const { data: f, error } = await supabase.from("world_furniture").insert({ name: house.name, w: Math.ceil(a.width / 16), h: Math.ceil(a.height / 16), tiles: [0], solid: [blocked], asset_id: a.id }).select().single();
+          if (error || !f) throw error ?? new Error("No se pudo crear la casa");
+          ok((await supabase.from("world_props").insert({ map_id: t.mapId, furniture_id: f.id, x: t.x, y: t.y, display_w: house.w, display_h: house.h })).error, "Casa creada"); loadFur();
+        }
+        await refresh();
+      } catch (e) { notify(e instanceof Error ? e.message : "No se pudo crear la casa", "error"); }
+      finally { setBusy(false); }
     } else if (tool === "prop") {
       if (!furId) return notify("Pick a furniture first", "error");
       ok((await supabase.from("world_props").insert({ map_id: t.mapId, furniture_id: furId, x: t.x, y: t.y })).error, "Placed");
@@ -118,7 +202,7 @@ export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameControlle
       const w = ex.warps.find((r) => t.x >= r.x && t.x < r.x + r.w && t.y >= r.y && t.y < r.y + r.h);
       if (w) return void ok((await supabase.from("world_warps").delete().eq("id", w.id)).error, "Door removed");
       const fm = new Map(ex.furniture.map((f) => [f.id, f]));
-      const p = ex.props.find((r) => { const f = fm.get(r.furniture_id); return f && t.x >= r.x && t.x < r.x + f.w && t.y >= r.y && t.y < r.y + f.h; });
+      const p = ex.props.find((r) => { const f = fm.get(r.furniture_id); if (!f) return false; const s = propSize(r, f); return t.x >= r.x && t.x < r.x + s.w && t.y >= r.y && t.y < r.y + s.h; });
       if (p) return void ok((await supabase.from("world_props").delete().eq("id", p.id)).error, "Object removed");
       notify("Nothing to remove here", "error");
     }
@@ -150,15 +234,20 @@ export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameControlle
     if (ok(error, "Furniture saved") && data) { setFurId(data.id); setFb({ ...fb, id: data.id }); }
   };
 
-  const tools: [Tool, string][] = [["tile", "Tiles"], ["prop", "Place object"], ["furniture", "Create object"], ["npc", "NPC"], ["warp", "Doors"], ["maps", "Maps"], ["house", "Casa"], ["remove", "Remove"]];
+  const tools: [Tool, string][] = [["tile", "Tiles"], ["prop", "Place object"], ["move", "Mover objetos"], ["players", "Arrastrar jugadores"], ["pan", "Recorrer mapa"], ["furniture", "Create object"], ["npc", "NPC"], ["warp", "Doors"], ["maps", "Maps"], ["house", "Casa"], ["remove", "Remove"]];
   const paletteUrl = selectedAsset ? assetUrls[selectedAsset.id] ?? null : url;
-  const paletteCols = selectedAsset ? selectedAsset.width / 16 : COLS;
+  const paletteCols = selectedAsset ? Math.ceil(selectedAsset.width / 16) : COLS;
+  const [palettePage, setPalettePage] = useState(0);
+  const paletteCount = selectedAsset ? paletteCols * Math.ceil(selectedAsset.height / 16) : TILE_COUNT;
   const palette = (
+    <>
     <div className="grid max-h-32 grid-cols-[repeat(auto-fill,minmax(30px,1fr))] gap-0.5 overflow-y-auto">
-      {Array.from({ length: selectedAsset ? selectedAsset.width / 16 : TILE_COUNT }, (_, i) => (
+      {Array.from({ length: Math.min(128, Math.max(0, paletteCount - palettePage * 128)) }, (_, j) => { const i = palettePage * 128 + j; return (
         <PxButton key={i} onClick={() => setTile(i)} aria-label={`Tile ${i}`} className={`border-2 ${tile === i ? "border-primary" : "border-transparent"} p-0`}><TileSwatch url={paletteUrl} id={i} cols={paletteCols} custom={!!selectedAsset} /></PxButton>
-      ))}
+      ); })}
     </div>
+    {paletteCount > 128 && <div className="flex items-center gap-2"><PxButton disabled={palettePage === 0} onClick={() => setPalettePage((p) => p - 1)}>←</PxButton><span>{palettePage + 1} / {Math.ceil(paletteCount / 128)}</span><PxButton disabled={(palettePage + 1) * 128 >= paletteCount} onClick={() => setPalettePage((p) => p + 1)}>→</PxButton></div>}
+    </>
   );
   const sel = "border-2 border-border bg-input px-1 py-1 text-base text-foreground";
 
@@ -171,13 +260,13 @@ export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameControlle
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto text-sm touch-pan-y">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <PxButton disabled={busy} onClick={() => chooseUpload("tileset")}><Upload className="mr-1 inline h-4 w-4" />Tileset 16×16</PxButton>
+          <PxButton disabled={busy} onClick={() => chooseUpload("tileset")}><Upload className="mr-1 inline h-4 w-4" />Subir tileset</PxButton>
           <PxButton disabled={busy} onClick={() => chooseUpload("object")}><Upload className="mr-1 inline h-4 w-4" />Subir objeto</PxButton>
           {busy && <span role="status">Subiendo…</span>}
           <label className="flex items-center gap-1"><input type="checkbox" checked={blocked} onChange={(e) => setBlocked(e.target.checked)} />Bloquea el paso</label>
         </div>
         {uploadError && <p role="alert" className="mb-2 text-destructive">{uploadError}</p>}
-        {(tool === "tile" || tool === "furniture") && <select aria-label="Tileset" className={`${sel} mb-2 max-w-full`} value={assetId} onChange={(e) => { setAssetId(e.target.value); setTile(e.target.value ? 0 : 1); }}><option value="">Veya original</option>{assets.filter((a) => a.kind === "tileset").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>}
+        {(tool === "tile" || tool === "furniture") && <select aria-label="Tileset" className={`${sel} mb-2 max-w-full`} value={assetId} onChange={(e) => { setAssetId(e.target.value); setPalettePage(0); setTile(e.target.value ? 0 : 1); }}><option value="">Veya original</option>{assets.filter((a) => a.kind === "tileset").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>}
         {tool === "tile" && (<>
           <div className="mb-1 flex flex-wrap gap-1">
             {(["ground", "decor", "objects", "above"] as Layer[]).map((l) => <PxButton key={l} tone={layer === l ? "primary" : "default"} onClick={() => setLayer(l)}>{l}</PxButton>)}
@@ -259,7 +348,20 @@ export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameControlle
             </div>
           ))}
         </>)}
-        {tool === "house" && <span>Casa · 5×4</span>}
+        {tool === "house" && <div className="flex flex-wrap items-center gap-2">
+          <img src={houseImage} alt="Casa de tres tejados" width={96} height={96} loading="lazy" className="h-24 w-24 object-contain [image-rendering:pixelated]" />
+          <PxInput aria-label="Nombre de casa" value={house.name} onChange={(e) => setHouse({ ...house, name: e.target.value })} className="w-32" />
+          <select aria-label="Estilo de casa" className={sel} value={house.style} onChange={(e) => setHouse({ ...house, style: e.target.value })}><option value="haunted">Tres tejados</option><option value="tiles">Casa de tiles</option>{assets.filter((a) => a.kind === "object").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+          <label>Ancho<PxInput aria-label="Ancho de casa" type="number" min={3} max={200} value={house.w} onChange={(e) => setHouse({ ...house, w: Math.max(3, Math.min(200, Math.round(+e.target.value))) })} className="w-16" /></label>
+          <label>Alto<PxInput aria-label="Alto de casa" type="number" min={4} max={200} value={house.h} onChange={(e) => setHouse({ ...house, h: Math.max(4, Math.min(200, Math.round(+e.target.value))) })} className="w-16" /></label>
+        </div>}
+        {tool === "move" && <div className="flex flex-wrap items-center gap-2">
+          <label>Ancho<PxInput aria-label="Ancho del objeto" type="number" min={0.25} step={0.25} value={objectSize.w} onChange={(e) => setObjectSize({ ...objectSize, w: +e.target.value })} className="w-16" /></label>
+          <label>Alto<PxInput aria-label="Alto del objeto" type="number" min={0.25} step={0.25} value={objectSize.h} onChange={(e) => setObjectSize({ ...objectSize, h: +e.target.value })} className="w-16" /></label>
+          <PxButton disabled={!selectedProp} onClick={() => void saveObjectSize()}>Guardar tamaño</PxButton>
+          <select aria-label="Mapa destino del objeto" className={`${sel} max-w-full`} value={destination} onChange={(e) => setDestination(e.target.value)}>{allMaps.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+          <PxButton disabled={!selectedProp} onClick={() => void (async () => { const { error } = await supabase.from("world_props").update({ map_id: destination, x: 0, y: 0 }).eq("id", selectedProp); ok(error, "Objeto trasladado"); await refresh(); })()}>Trasladar</PxButton>
+        </div>}
         {tool === "remove" && <p className="text-muted-foreground">Tap an NPC, object or door to delete it. Use the Tiles eraser for tiles.</p>}
       </div>
     </div>

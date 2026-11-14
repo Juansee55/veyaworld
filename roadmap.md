@@ -1,5 +1,11 @@
 # Veya World roadmap
 
+## Social menu and mobile view
+- [ ] Menu with news and admin-only publishing
+- [ ] View other player profiles and edit own text status
+- [ ] Correct landscape layout and two-finger zoom
+- [ ] Verify publishing permissions, profiles and touch views
+
 ## Expanded world editing
 - [ ] Customizable reference-inspired houses
 - [ ] Remove application image size and dimension caps (storage platform maximum remains)

@@ -48,4 +48,9 @@ use the editor.
 - Create imported auth identities only through the supported admin API with explicit original IDs and no password, confirmation or role metadata; write application batches through the service-role-only atomic SQL importer. Why: preserve ownership without copying credentials or modifying managed auth tables.
 
 ## World editor media
-- Store normalized world images in private player-art storage with admin-only world_assets metadata; tiles and furniture reference asset IDs and the scene loads signed images with optional-art fallbacks. Why: preserve custom art across maps without exposing private storage or blocking gameplay.
+- Store original world images in private player-art storage with admin-only world_assets metadata; pad partial tiles during scene loading and keep optional-art fallbacks. Why: accept arbitrary dimensions without modifying source images or blocking gameplay.
+- Save placed-object dimensions independently from furniture templates; admin player drags use a validated server function and an admin-checking SQL RPC. Why: resizing one instance must not resize all copies, and movement permissions cannot depend on UI state.
+
+## Social views
+- News publishing is enforced by admin RLS; profile text statuses use owner-only profile updates. Why: hiding buttons alone does not enforce permissions.
+- Image viewers use the existing zoom-pan library; gameplay pinch changes the Phaser camera around the gesture midpoint. Why: image transforms and game-world coordinates need separate zoom handling.
