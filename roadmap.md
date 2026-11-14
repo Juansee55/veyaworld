@@ -1,5 +1,12 @@
 # Veya World roadmap
 
+## Expanded world editing
+- [ ] Customizable reference-inspired houses
+- [ ] Remove application image size and dimension caps (storage platform maximum remains)
+- [ ] Resize and drag placed objects across maps
+- [ ] Admin-authorized player dragging with saved authoritative positions
+- [ ] Verify editor changes and permissions
+
 ## World editor uploads
 - [ ] Upload objects and horizontal 16×16 tilesets from files or gallery
 - [ ] Paint custom tiles, create blank maps and build houses during play
