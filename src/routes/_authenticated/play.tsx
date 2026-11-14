@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, Map as MapIcon, Shirt, Shield, Eye, Menu as MenuIcon, ZoomIn, ZoomOut, Backpack } from "lucide-react";
+import { MessageSquare, Map as MapIcon, Shield, Eye, Menu as MenuIcon, ZoomIn, ZoomOut, Backpack } from "lucide-react";
 import { PLAYER_MAX_HP } from "@/lib/game/play-rules";
 import { supabase } from "@/integrations/supabase/client";
 import { isDirection, sanitizeLook, type Look } from "@/game/catalog";
@@ -196,7 +196,6 @@ function PlayPage() {
     } finally { setSaving(false); }
   };
 
-  const dot = hud.status === "online" ? "bg-accent" : hud.status === "offline" ? "bg-destructive" : "bg-primary animate-pulse";
   const invites = !d.myGang ? d.invites.length : 0;
   const signOut = () => void (async () => {
     await qc.cancelQueries();
@@ -259,15 +258,6 @@ function PlayPage() {
     else { const id = ctrlRef.current?.playerAt(e.clientX, e.clientY); if (id) setViewPlayer(id); }
   };
 
-  const info = (
-    <div className="pixel-panel pointer-events-auto px-3 py-1.5 text-sm leading-tight">
-      <div className="max-w-40 truncate text-primary">{hud.mapName || "Loading…"}</div>
-      <div className="flex items-center gap-1.5 text-muted-foreground">
-        <span className={`inline-block h-2 w-2 ${dot}`} />
-        {hud.online} online
-      </div>
-    </div>
-  );
   const menuButtons = (
     <>
       <IconButton icon={<MessageSquare />} label="Chat" onClick={() => setMenu("chat")} />
@@ -285,7 +275,7 @@ function PlayPage() {
         <p className="text-lg text-destructive">The world could not load.</p>
         <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
       </div>}
-      <Joystick />
+      <Joystick disabled={overlayOpen || editorOpen} />
       {buttonsHidden ? (
         <Button variant="ghost" onClick={() => setButtonsHidden(false)} aria-label="Show buttons" className="pixel-panel absolute z-10 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground"
           style={{ top: "max(8px, env(safe-area-inset-top))", left: "max(8px, env(safe-area-inset-left))" }}><Eye className="h-4 w-4" />Show buttons</Button>

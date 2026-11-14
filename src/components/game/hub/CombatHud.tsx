@@ -94,11 +94,13 @@ export function CombatHud({ d, mapId, onAttack, onReload, landscape, hidden, onB
   d: GameData; mapId: string; onAttack: () => Promise<string | null>; onReload: () => void; landscape: boolean; hidden: boolean; onBag: () => void;
 }) {
   const s = useCombat(d, mapId, onAttack);
+  const qc = useQueryClient();
   const { slots } = useQuickSlots(d.firearm?.user_id ?? "");
   const activate = async (value: string) => {
     if (value.startsWith("gun:")) { const { error } = await supabase.rpc("equip_firearm", { _gun: value.slice(4) }); if (error) notify(error.message, "error"); }
     else if (value.startsWith("item:")) { const id = value.slice(5), item = d.items.find((i) => i.id === id); if (item?.category === "equipment") await rpc("set_equipment", { _item: id, _on: true }); else await rpc("use_item", { _item: id }); }
     else onBag();
+    await qc.invalidateQueries({ queryKey: ["g"] });
   };
   const pictures: Record<string, string> = { gun_crystal: crystal.url, gun_pulse: pulse.url, gun_carbine: carbine.url };
   if (hidden) return null;
@@ -127,7 +129,7 @@ export function CombatHud({ d, mapId, onAttack, onReload, landscape, hidden, onB
 
   return (
     <>
-      <div className="pointer-events-none absolute left-1/2 z-10 flex w-28 -translate-x-1/2 flex-col gap-2" style={{ top: "max(12px, env(safe-area-inset-top))" }}>
+      <div className="pointer-events-none absolute left-1/2 z-10 flex w-24 -translate-x-1/2 flex-col gap-2" style={{ top: "max(12px, env(safe-area-inset-top))" }}>
         <HpCard s={s} /><BaseCard s={s} />
       </div>
       <div className="pointer-events-none absolute right-3 top-3 z-10 flex flex-col items-end gap-2">

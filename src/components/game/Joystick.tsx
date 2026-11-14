@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { joystick } from "@/game/input";
 
-const RADIUS = 48;
+const RADIUS = 64;
 
 /** Floating virtual joystick: touch anywhere on the left side of the screen. */
-export function Joystick() {
+export function Joystick({ disabled = false }: { disabled?: boolean }) {
   const [base, setBase] = useState<{ x: number; y: number } | null>(null);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const pointerId = useRef<number | null>(null);
@@ -24,6 +24,8 @@ export function Joystick() {
     setKnob({ x: 0, y: 0 });
     joystick.x = 0; joystick.y = 0; joystick.active = false;
   };
+  useEffect(() => { if (disabled) end(); }, [disabled]);
+  if (disabled) return null;
 
   return (
     <div
@@ -52,15 +54,15 @@ export function Joystick() {
           : { left: "max(24px, env(safe-area-inset-left))", bottom: "max(28px, env(safe-area-inset-bottom))" };
         return (
           <div
-            className={`pointer-events-none absolute rounded-full border-2 border-border bg-background/40 transition-opacity ${b ? "opacity-100" : "opacity-60"}`}
+            className={`game-control pointer-events-none absolute rounded-full transition-opacity ${b ? "opacity-100" : "opacity-60"}`}
             style={{ width: RADIUS * 2, height: RADIUS * 2, ...style }}
           >
-            <span className="absolute left-1/2 top-0.5 -translate-x-1/2 text-[10px] text-foreground/50">▲</span>
-            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[10px] text-foreground/50">▼</span>
-            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] text-foreground/50">◀</span>
-            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] text-foreground/50">▶</span>
+            <span className="absolute left-1/2 top-0.5 -translate-x-1/2 text-2xl text-foreground/50">△</span>
+            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-2xl text-foreground/50">▽</span>
+            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-2xl text-foreground/50">◁</span>
+            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-2xl text-foreground/50">▷</span>
             <div
-              className="absolute left-1/2 top-1/2 h-12 w-12 rounded-full border-2 border-primary bg-primary/70"
+              className="absolute left-1/2 top-1/2 h-12 w-12 rounded-full border-2 border-foreground/40 bg-foreground/30"
               style={{ transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))` }}
             />
           </div>
