@@ -55,6 +55,79 @@ export type Database = {
           },
         ]
       }
+      autumn_inventory: {
+        Row: {
+          bags: number
+          last_push_at: string | null
+          user_id: string
+        }
+        Insert: {
+          bags?: number
+          last_push_at?: string | null
+          user_id: string
+        }
+        Update: {
+          bags?: number
+          last_push_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autumn_inventory_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      autumn_rewards: {
+        Row: {
+          qty: number
+          reward_id: string
+          user_id: string
+        }
+        Insert: {
+          qty?: number
+          reward_id: string
+          user_id: string
+        }
+        Update: {
+          qty?: number
+          reward_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autumn_rewards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      autumn_trees: {
+        Row: {
+          id: string
+          map_id: string
+          x: number
+          y: number
+        }
+        Insert: {
+          id: string
+          map_id: string
+          x: number
+          y: number
+        }
+        Update: {
+          id?: string
+          map_id?: string
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
       base_captures: {
         Row: {
           base_id: string
@@ -1306,6 +1379,8 @@ export type Database = {
         Args: { _minutes: number; _user: string }
         Returns: undefined
       }
+      open_autumn_bag: { Args: never; Returns: Json }
+      push_autumn_tree: { Args: { _aim: string; _tree: string }; Returns: Json }
       reload_firearm: { Args: never; Returns: undefined }
       remove_alliance: { Args: { _id: string }; Returns: undefined }
       report_state: {

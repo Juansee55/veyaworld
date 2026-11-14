@@ -1,5 +1,5 @@
 export const PLAYER_MAX_HP = 50;
-export const QUICK_SLOT_COUNT = 2;
+export const QUICK_SLOT_COUNT = 3;
 export function earnedBaseMinutes(elapsedMs: number, ownedBases: number) {
   return Math.floor(Math.max(0, elapsedMs) / 60_000) * Math.max(0, Math.floor(ownedBases));
 }

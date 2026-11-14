@@ -1,5 +1,11 @@
 # Veya World roadmap
 
+## Acorn event and fixed fist shortcut
+- [ ] Add a third, immutable fist preset while preserving the first two assignments
+- [ ] Add autumn trees, server-validated pushing and 27% bag drops
+- [ ] Open bags atomically for 18 autumn hats or two functional firearms; enforce ownership
+- [ ] Verify signed-in pushing, bag opening, rewards, presets and mobile views
+
 ## Weapon animation and reference HUD
 - [x] Animate carried weapons, recoil and reload
 - [x] Keep zoom following the player in both orientations
