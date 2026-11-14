@@ -1,0 +1,110 @@
+import * as Phaser from "phaser";
+import type { Direction, Look } from "./catalog";
+import { WorldScene, type AdminFx, type AttackResult, type GameContext, type GangInfo, type HudState, type WorldSceneData, type WorldSnapshot } from "./scenes/WorldScene";
+import { loadLayerArt } from "./art/layers";
+import { loadTilesetAtlas } from "./art/tilesetArt";
+import { loadCustomMaps, type MapExtras } from "./editor/worldData";
+
+export interface GameOptions {
+  userId: string;
+  username: string;
+  look: Look;
+  mapId: string;
+  x: number;
+  y: number;
+  dir: Direction;
+  onHud: (h: HudState) => void;
+  gang: GangInfo;
+  myHp: { hp: number; max: number; prot: number };
+  attack: (targetId: string) => Promise<AttackResult>;
+  admin: Record<string, AdminFx>;
+  isAdmin: boolean;
+}
+
+export interface GameController {
+  setLook(look: Look, username: string): void;
+  setGang(info: GangInfo): void;
+  setZones(z: GameContext["zones"]): void;
+  setAdmin(admin: Record<string, AdminFx>, isAdmin: boolean): void;
+  say(userId: string, text: string): void;
+  setMyHp(hp: number, max: number, prot: number): void;
+  respawn(mapId: string, x: number, y: number): void;
+  attack(): Promise<string | null>;
+  /** Did a tap at these viewport coordinates hit the local player? */
+  hitTestSelf(clientX: number, clientY: number): boolean;
+  snapshot(): WorldSnapshot | null;
+  /** World editor helpers. */
+  tileAt(clientX: number, clientY: number): { mapId: string; x: number; y: number } | null;
+  myTile(): { mapId: string; x: number; y: number } | null;
+  extras(): MapExtras | null;
+  showEditGrid(on: boolean): void;
+  tilesetUrl(): string | null;
+  goto(mapId: string, x: number, y: number): void;
+  destroy(): void;
+}
+
+export async function createGame(parent: HTMLElement, opts: GameOptions): Promise<GameController> {
+  await Promise.all([loadLayerArt(), loadTilesetAtlas(), loadCustomMaps().catch(() => [])]);
+  const game = new Phaser.Game({
+    type: Phaser.AUTO,
+    parent,
+    backgroundColor: "#14101c",
+    pixelArt: true,
+    roundPixels: true,
+    antialias: false,
+    scale: { mode: Phaser.Scale.RESIZE, width: parent.clientWidth, height: parent.clientHeight },
+    physics: { default: "arcade", arcade: { debug: false } },
+    input: { mouse: false, touch: false, keyboard: true },
+    banner: false,
+    fps: { target: 60 },
+  });
+
+  const ctx: GameContext = {
+    userId: opts.userId, username: opts.username, look: opts.look, onHud: opts.onHud,
+    gang: opts.gang, zones: {}, myHp: opts.myHp, attack: opts.attack,
+    admin: opts.admin, isAdmin: opts.isAdmin,
+  };
+  game.registry.set("ctx", ctx);
+  const start: WorldSceneData = { mapId: opts.mapId, x: opts.x, y: opts.y, dir: opts.dir };
+  game.scene.add("world", WorldScene, true, start);
+
+  const scene = () => game.scene.getScene("world") as WorldScene | null;
+  const onHide = () => { if (document.visibilityState === "hidden") void scene()?.persist(); };
+  document.addEventListener("visibilitychange", onHide);
+
+  return {
+    setLook(look, username) { scene()?.applyLook(look, username); },
+    setGang(info) { ctx.gang = info; const s = scene(); if (s?.sys.isActive()) s.setGang(info); },
+    say(id, t) { const s = scene(); if (s?.sys.isActive()) s.say(id, t); },
+    setAdmin(a, isAdmin) { ctx.admin = a; ctx.isAdmin = isAdmin; const s = scene(); if (s?.sys.isActive()) s.setAdmin(a, isAdmin); },
+    setZones(z) { ctx.zones = z; const s = scene(); if (s?.sys.isActive()) s.setZones(z); },
+    setMyHp(hp, max, prot) { ctx.myHp = { hp, max, prot }; const s = scene(); if (s?.sys.isActive()) s.setMyHp(hp, max, prot); },
+    respawn(mapId, x, y) { scene()?.respawn(mapId, x, y); },
+    attack() { return scene()?.attack() ?? Promise.resolve(null); },
+    hitTestSelf(cx, cy) {
+      const s = scene(); if (!s?.sys.isActive()) return false;
+      const r = parent.getBoundingClientRect();
+      return s.hitTestSelf(cx - r.left, cy - r.top);
+    },
+    tileAt(cx, cy) {
+      const s = scene(); if (!s?.sys.isActive()) return null;
+      const r = parent.getBoundingClientRect();
+      return s.tileAt(cx - r.left, cy - r.top);
+    },
+    myTile() { const s = scene(); return s?.sys.isActive() ? s.myTile() : null; },
+    extras() { const s = scene(); return s?.sys.isActive() ? s.extrasNow() : null; },
+    showEditGrid(on) { const s = scene(); if (s?.sys.isActive()) s.showEditGrid(on); },
+    tilesetUrl() {
+      if (!game.textures.exists("tileset")) return null;
+      const img = game.textures.get("tileset").getSourceImage() as HTMLCanvasElement;
+      return img.toDataURL ? img.toDataURL() : null;
+    },
+    goto(mapId, x, y) { scene()?.respawn(mapId, x * 16 + 8, y * 16 + 8); },
+    snapshot() { const s = scene(); return s?.sys.isActive() ? s.snapshot() : null; },
+    destroy() {
+      document.removeEventListener("visibilitychange", onHide);
+      void scene()?.persist();
+      game.destroy(true);
+    },
+  };
+}

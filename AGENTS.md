@@ -28,3 +28,13 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Game engine
+- All Phaser code lives in `src/game/` and is loaded only via dynamic import from `/play`; only pure-data modules (`catalog.ts`, `maps/`, `bases/defs.ts`, `combat/lineOfSight.ts`) are SSR-safe and may be imported statically or by server code. Why: Phaser touches `window` at import time.
+- Multiplayer: one realtime channel per map; Presence for who is online and their look, Broadcast `move` for positions. Why: keeps high-frequency traffic out of the database.
+- Character art is generated in code with one shared frame grid for BODY, HEAD and HAT, drawn in that order. Why: any part can be swapped on its own.
+
+## Gang system
+- Clients only SELECT gang/base/combat/chat tables; every write goes through SECURITY DEFINER SQL functions that validate the caller. Why: gameplay must be server-authoritative.
+- Attacks go through the `attackPlayer` server function (wall check with the TS map data), which then calls the service-role-only `resolve_attack` SQL function. Why: walls live in TS map data, not the database.
+- Base capture/repair and hours are processed by `base_tick`, which clients call every 3 s and the server throttles globally. Why: no in-memory server state on workers.
