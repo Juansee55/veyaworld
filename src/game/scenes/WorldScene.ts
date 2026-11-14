@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { worldArtUrl } from "@/lib/game/world-art";
 import { supabase } from "@/integrations/supabase/client";
 import { facingFromVector, normalizeInput, type AnimState, type Direction, type Look } from "../catalog";
 import { ensureLayerTexture, layerKeys } from "../art/layers";
@@ -71,7 +72,7 @@ export class WorldScene extends Phaser.Scene {
   private wallCollider?: Phaser.Physics.Arcade.Collider;
   private propCollider?: Phaser.Physics.Arcade.Collider;
   private tileLayers!: Record<"ground" | "decor" | "objects" | "above", Phaser.Tilemaps.TilemapLayer>;
-  private extras: MapExtras = { tiles: [], warps: [], npcs: [], props: [], furniture: [] };
+  private extras: MapExtras = { tiles: [], warps: [], npcs: [], props: [], furniture: [], assets: [] };
   private extraObjs: Phaser.GameObjects.GameObject[] = [];
   private npcs: { s: CharacterSprite; x: number; y: number; dialog: string; last: number }[] = [];
   private propBodies?: Phaser.Physics.Arcade.StaticGroup;
@@ -106,7 +107,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.tileLayers = layers;
     this.propBodies = this.physics.add.staticGroup();
-    this.extras = { tiles: [], warps: [], npcs: [], props: [], furniture: [] };
+    this.extras = { tiles: [], warps: [], npcs: [], props: [], furniture: [], assets: [] };
     this.extraObjs = []; this.npcs = [];
     void this.reloadExtras();
     this.subscribeEdits();
@@ -276,13 +277,26 @@ export class WorldScene extends Phaser.Scene {
   private applyTile(t: TileRow) {
     if (t.x < 0 || t.y < 0 || t.x >= this.map.width || t.y >= this.map.height) return;
     const L = t.layer as keyof typeof this.tileLayers; const layer = this.tileLayers?.[L]; if (!layer) return;
-    layer.putTileAt(t.tile === 0 ? -1 : t.tile, t.x, t.y);
+    layer.putTileAt(t.asset_id || t.tile === 0 ? -1 : t.tile, t.x, t.y);
     this.map.layers[L][t.y * this.map.width + t.x] = t.tile;
   }
 
   private async reloadExtras() {
     const mapId = this.map.id;
     const ex = await loadMapExtras(mapId);
+    if (!this.sys.isActive() || this.map.id !== mapId) return;
+    await Promise.all(ex.assets.map(async (a) => {
+      const key = `world-art-${a.id}`;
+      if (this.textures.exists(key)) return;
+      try {
+        const image = new Image(); image.crossOrigin = "anonymous";
+        const url = await worldArtUrl(a.path);
+        await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("Image unavailable")); image.src = url; });
+        if (!this.sys.isActive()) return;
+        const texture = this.textures.addImage(key, image);
+        if (texture && a.kind === "tileset") for (let i = 0; i < a.width / 16; i++) texture.add(i, 0, i * 16, 0, 16, 16);
+      } catch { /* Missing custom art must not stop gameplay. */ }
+    }));
     if (!this.sys.isActive() || this.map.id !== mapId) return;
     this.extras = ex;
     for (const t of ex.tiles) this.applyTile(t);
@@ -294,16 +308,24 @@ export class WorldScene extends Phaser.Scene {
     for (const n of this.npcs) n.s.destroy();
     this.extraObjs = []; this.npcs = [];
     this.propBodies?.clear(true, true);
+    for (const t of this.extras.tiles) {
+      if (!t.asset_id) continue;
+      const key = `world-art-${t.asset_id}`;
+      if (this.textures.exists(key)) this.extraObjs.push(this.add.image(t.x * TILE + 8, t.y * TILE + 8, key, t.tile).setDepth(t.layer === "above" ? 100000 : t.layer === "objects" ? 3 : t.layer === "decor" ? 1 : 0));
+      if (t.solid) { const z = this.add.zone(t.x * TILE + 8, t.y * TILE + 8, TILE, TILE); this.propBodies?.add(z); this.extraObjs.push(z); }
+    }
     const fur = new Map(this.extras.furniture.map((f) => [f.id, f]));
     for (const p of this.extras.props) {
       const f = fur.get(p.furniture_id); if (!f) continue;
+      const key = f.asset_id ? `world-art-${f.asset_id}` : "";
+      if (key && this.textures.exists(key)) this.extraObjs.push(this.add.image(p.x * TILE, p.y * TILE, key).setOrigin(0).setDepth(10 + (p.y + f.h) * TILE));
       for (let j = 0; j < f.h; j++) for (let i = 0; i < f.w; i++) {
         const k = j * f.w + i, tile = f.tiles[k] ?? 0;
         const x = (p.x + i) * TILE, y = (p.y + j) * TILE;
-        if (tile > 0) this.extraObjs.push(this.add.image(x + 8, y + 8, "tileset", `t${tile}`).setDepth(10 + y + TILE));
+        if (!f.asset_id && tile > 0) this.extraObjs.push(this.add.image(x + 8, y + 8, "tileset", `t${tile}`).setDepth(10 + y + TILE));
         if (f.solid[k]) {
           const z = this.add.zone(x + 8, y + 8, TILE, TILE);
-          this.propBodies!.add(z); this.extraObjs.push(z);
+          this.propBodies?.add(z); this.extraObjs.push(z);
         }
       }
     }
@@ -324,6 +346,7 @@ export class WorldScene extends Phaser.Scene {
     this.editCh = supabase.channel(`edit-${mapId}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "world_tiles", filter: f }, (p) => {
         if (p.eventType !== "DELETE") this.applyTile(p.new as TileRow);
+        later();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "world_warps", filter: f }, later)
       .on("postgres_changes", { event: "*", schema: "public", table: "world_npcs", filter: f }, later)

@@ -1,5 +1,10 @@
 # Veya World roadmap
 
+## World editor uploads
+- [ ] Upload objects and horizontal 16×16 tilesets from files or gallery
+- [ ] Paint custom tiles, create blank maps and build houses during play
+- [ ] Verify saving, reloading and mobile layout as an administrator
+
 ## Admin CSV importer
 - [ ] Add admin-only file selection, validation reports and import results
 - [ ] Preserve player, gang, chat and user IDs with server-checked relationships

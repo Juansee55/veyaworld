@@ -891,8 +891,39 @@ export type Database = {
         }
         Relationships: []
       }
+      world_assets: {
+        Row: {
+          created_at: string
+          height: number
+          id: string
+          kind: string
+          name: string
+          path: string
+          width: number
+        }
+        Insert: {
+          created_at?: string
+          height: number
+          id?: string
+          kind: string
+          name: string
+          path: string
+          width: number
+        }
+        Update: {
+          created_at?: string
+          height?: number
+          id?: string
+          kind?: string
+          name?: string
+          path?: string
+          width?: number
+        }
+        Relationships: []
+      }
       world_furniture: {
         Row: {
+          asset_id: string | null
           created_at: string
           h: number
           id: string
@@ -902,6 +933,7 @@ export type Database = {
           w: number
         }
         Insert: {
+          asset_id?: string | null
           created_at?: string
           h: number
           id?: string
@@ -911,6 +943,7 @@ export type Database = {
           w: number
         }
         Update: {
+          asset_id?: string | null
           created_at?: string
           h?: number
           id?: string
@@ -919,7 +952,15 @@ export type Database = {
           tiles?: number[]
           w?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "world_furniture_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "world_assets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       world_maps: {
         Row: {
@@ -1027,27 +1068,41 @@ export type Database = {
       }
       world_tiles: {
         Row: {
+          asset_id: string | null
           layer: string
           map_id: string
+          solid: boolean
           tile: number
           x: number
           y: number
         }
         Insert: {
+          asset_id?: string | null
           layer: string
           map_id: string
+          solid?: boolean
           tile?: number
           x: number
           y: number
         }
         Update: {
+          asset_id?: string | null
           layer?: string
           map_id?: string
+          solid?: boolean
           tile?: number
           x?: number
           y?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "world_tiles_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "world_assets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       world_warps: {
         Row: {

@@ -10,7 +10,7 @@ export type WarpRow = Tb["world_warps"]["Row"];
 export type NpcRow = Tb["world_npcs"]["Row"];
 export type FurnitureRow = Tb["world_furniture"]["Row"];
 export type PropRow = Tb["world_props"]["Row"];
-export interface MapExtras { tiles: TileRow[]; warps: WarpRow[]; npcs: NpcRow[]; props: PropRow[]; furniture: FurnitureRow[] }
+export interface MapExtras { tiles: TileRow[]; warps: WarpRow[]; npcs: NpcRow[]; props: PropRow[]; furniture: FurnitureRow[]; assets: Tb["world_assets"]["Row"][] }
 
 /** Custom (editor-made) maps are registered into the normal map registry. */
 export function registerCustomMap(m: WorldMapRow) {
@@ -28,14 +28,15 @@ export async function loadCustomMaps(): Promise<WorldMapRow[]> {
 }
 
 export async function loadMapExtras(mapId: string): Promise<MapExtras> {
-  const [t, w, n, p, f] = await Promise.all([
+  const [t, w, n, p, f, a] = await Promise.all([
     supabase.from("world_tiles").select("*").eq("map_id", mapId),
     supabase.from("world_warps").select("*").eq("map_id", mapId),
     supabase.from("world_npcs").select("*").eq("map_id", mapId),
     supabase.from("world_props").select("*").eq("map_id", mapId),
     supabase.from("world_furniture").select("*"),
+    supabase.from("world_assets").select("*"),
   ]);
-  return { tiles: t.data ?? [], warps: w.data ?? [], npcs: n.data ?? [], props: p.data ?? [], furniture: f.data ?? [] };
+  return { tiles: t.data ?? [], warps: w.data ?? [], npcs: n.data ?? [], props: p.data ?? [], furniture: f.data ?? [], assets: a.data ?? [] };
 }
 
 export { hasMap };

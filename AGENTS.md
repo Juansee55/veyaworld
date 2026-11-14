@@ -46,3 +46,6 @@ use the editor.
 ## Admin record imports
 - Keep CSV parsing and its schema allowlist browser-safe; import handlers must revalidate files and check the caller's admin role before loading privileged helpers. Why: UI visibility and client validation are not security boundaries.
 - Create imported auth identities only through the supported admin API with explicit original IDs and no password, confirmation or role metadata; write application batches through the service-role-only atomic SQL importer. Why: preserve ownership without copying credentials or modifying managed auth tables.
+
+## World editor media
+- Store normalized world images in private player-art storage with admin-only world_assets metadata; tiles and furniture reference asset IDs and the scene loads signed images with optional-art fallbacks. Why: preserve custom art across maps without exposing private storage or blocking gameplay.

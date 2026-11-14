@@ -50,6 +50,13 @@
       "when": 1794619834654,
       "tag": "0006_admin_csv_import",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794624535999,
+      "tag": "0007_world_editor_uploaded_art",
+      "breakpoints": true
     }
   ]
 }

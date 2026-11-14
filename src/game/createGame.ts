@@ -3,7 +3,7 @@ import type { Direction, Look } from "./catalog";
 import { WorldScene, type AdminFx, type AttackResult, type GameContext, type GangInfo, type HudState, type WorldSceneData, type WorldSnapshot } from "./scenes/WorldScene";
 import { loadLayerArt } from "./art/layers";
 import { loadTilesetAtlas } from "./art/tilesetArt";
-import { loadCustomMaps, type MapExtras } from "./editor/worldData";
+import { loadCustomMaps, registerCustomMap, type WorldMapRow, type MapExtras } from "./editor/worldData";
 
 export interface GameOptions {
   userId: string;
@@ -40,6 +40,7 @@ export interface GameController {
   showEditGrid(on: boolean): void;
   tilesetUrl(): string | null;
   goto(mapId: string, x: number, y: number): void;
+  registerMap(map: WorldMapRow): void;
   destroy(): void;
 }
 
@@ -100,6 +101,7 @@ export async function createGame(parent: HTMLElement, opts: GameOptions): Promis
       return img.toDataURL ? img.toDataURL() : null;
     },
     goto(mapId, x, y) { scene()?.respawn(mapId, x * 16 + 8, y * 16 + 8); },
+    registerMap(map) { registerCustomMap(map); },
     snapshot() { const s = scene(); return s?.sys.isActive() ? s.snapshot() : null; },
     destroy() {
       document.removeEventListener("visibilitychange", onHide);
