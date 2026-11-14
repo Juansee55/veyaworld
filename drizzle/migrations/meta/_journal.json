@@ -43,6 +43,13 @@
       "when": 1794616845920,
       "tag": "0005_world_editor",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794619834654,
+      "tag": "0006_admin_csv_import",
+      "breakpoints": true
     }
   ]
 }

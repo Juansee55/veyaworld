@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthenticatedAdminImportRouteImport } from './routes/_authenticated/admin-import'
 import { Route as AuthenticatedPlayRouteImport } from './routes/_authenticated/play'
 
 const IndexRoute = IndexRouteImport.update({
@@ -34,6 +35,12 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminImportRoute =
+  AuthenticatedAdminImportRouteImport.update({
+    id: '/admin-import',
+    path: '/admin-import',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPlayRoute = AuthenticatedPlayRouteImport.update({
   id: '/play',
   path: '/play',
@@ -44,12 +51,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/admin-import': typeof AuthenticatedAdminImportRoute
   '/play': typeof AuthenticatedPlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/admin-import': typeof AuthenticatedAdminImportRoute
   '/play': typeof AuthenticatedPlayRoute
 }
 export interface FileRoutesById {
@@ -58,19 +67,21 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/admin-import': typeof AuthenticatedAdminImportRoute
   '/_authenticated/play': typeof AuthenticatedPlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/reset-password' | '/play'
+  fullPaths: '/' | '/auth' | '/reset-password' | '/admin-import' | '/play'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/reset-password' | '/play'
+  to: '/' | '/auth' | '/reset-password' | '/admin-import' | '/play'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/reset-password'
+    | '/_authenticated/admin-import'
     | '/_authenticated/play'
   fileRoutesById: FileRoutesById
 }
@@ -111,6 +122,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin-import': {
+      id: '/_authenticated/admin-import'
+      path: '/admin-import'
+      fullPath: '/admin-import'
+      preLoaderRoute: typeof AuthenticatedAdminImportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/play': {
       id: '/_authenticated/play'
       path: '/play'
@@ -122,10 +140,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminImportRoute: typeof AuthenticatedAdminImportRoute
   AuthenticatedPlayRoute: typeof AuthenticatedPlayRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminImportRoute: AuthenticatedAdminImportRoute,
   AuthenticatedPlayRoute: AuthenticatedPlayRoute,
 }
 

@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { rpc } from "@/lib/game/api";
 import type { AdminFx } from "@/game/scenes/WorldScene";
 import { PxButton, PxInput, Row, Section } from "./hub/ui";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import { FileUp } from "lucide-react";
 
 const SIZES: [string, number][] = [["Small", 0.6], ["Normal", 1], ["Medium", 1.5], ["Giant", 2.5]];
 const SPEEDS: [string, number][] = [["Normal", 1], ["Fast", 1.8], ["Turbo", 3]];
@@ -28,6 +31,7 @@ export function AdminPanel({ fx, onClose, onWorldEdit }: { fx?: AdminFx | undefi
       <div className="mb-3 flex items-center justify-between"><h2 className="text-2xl text-primary">Admin</h2><PxButton onClick={onClose}>Back</PxButton></div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <Section title="World"><PxButton tone="primary" onClick={onWorldEdit}>Edit world</PxButton></Section>
+        <Section title="Data"><Button asChild variant="outline"><Link to="/admin-import"><FileUp />Import CSV files</Link></Button></Section>
         <Section title="Title next to your name">
           <div className="flex gap-2">
             <PxInput value={f.title ?? ""} maxLength={16} placeholder="★ Owner" onChange={(e) => setF({ ...f, title: e.target.value })} className="flex-1" />

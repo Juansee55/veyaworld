@@ -1,5 +1,10 @@
 # Veya World roadmap
 
+## Admin CSV importer
+- [ ] Add admin-only file selection, validation reports and import results
+- [ ] Preserve player, gang, chat and user IDs with server-checked relationships
+- [ ] Verify valid imports, validation failures, access denial and mobile layout
+
 ## Migration completion
 - [x] Audit and fix broken asset pointers, initialization, save errors and missing editor entry
 - [x] Verify signed-in gameplay, wardrobe uploads, gang create/delete, chat and portrait/landscape mobile rendering

@@ -1124,6 +1124,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      import_csv_records: {
+        Args: { _files: Json; _new_user_ids?: string[]; _replace?: boolean }
+        Returns: Json
+      }
       invite_player: { Args: { _username: string }; Returns: undefined }
       kick_member: { Args: { _user: string }; Returns: undefined }
       leave_gang: { Args: never; Returns: undefined }

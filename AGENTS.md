@@ -42,3 +42,7 @@ use the editor.
 ## Migration reliability
 - Import pointer-only assets into the current project rather than reusing source-project pointers; optional art failures use the existing procedural fallback so one missing image cannot prevent gameplay.
 - Keep the auth state subscription in the root route and password recovery on a public page; recovery callbacks must not redirect into the game before password setup.
+
+## Admin record imports
+- Keep CSV parsing and its schema allowlist browser-safe; import handlers must revalidate files and check the caller's admin role before loading privileged helpers. Why: UI visibility and client validation are not security boundaries.
+- Create imported auth identities only through the supported admin API with explicit original IDs and no password, confirmation or role metadata; write application batches through the service-role-only atomic SQL importer. Why: preserve ownership without copying credentials or modifying managed auth tables.
