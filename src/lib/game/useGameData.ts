@@ -12,7 +12,7 @@ export function useGameData(userId: string) {
   const qc = useQueryClient();
   const firearm = useQuery({ queryKey: ["g", "firearm", userId], refetchInterval: 2000, queryFn: async () => (await supabase.from("player_firearms").select("*").eq("user_id", userId).maybeSingle()).data });
   const allFirearms = useQuery({ queryKey: ["g", "allFirearms"], refetchInterval: 2000, queryFn: () => q(supabase.from("player_firearms").select("user_id,gun_id")) });
-  const wallet = useQuery({ queryKey: ["g", "wallet", userId], queryFn: async () => (await supabase.from("player_wallets").select("*").eq("user_id", userId).maybeSingle()).data });
+  const wallet = useQuery({ queryKey: ["g", "wallet", userId], refetchInterval: 2000, queryFn: async () => (await supabase.from("player_wallets").select("*").eq("user_id", userId).maybeSingle()).data });
   const customGuns = useQuery({ queryKey: ["g", "customGuns", userId], queryFn: () => q(supabase.from("player_art").select("id,name").eq("user_id", userId).eq("kind", "melee")) });
   const gangs = useQuery({ queryKey: ["g", "gangs"], queryFn: () => q(supabase.from("gangs").select("*").order("created_at")) });
   const members = useQuery({ queryKey: ["g", "members"], queryFn: () => q(supabase.from("gang_members").select("*")) });

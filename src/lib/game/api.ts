@@ -13,4 +13,4 @@ export async function rpc<K extends keyof Fns & string>(fn: K, args?: Fns[K]["Ar
   return data as Fns[K]["Returns"];
 }
 
-export const fmtHs = (n: number | null | undefined) => `${Math.max(0, Math.floor(n ?? 0))}hs`;
+export const fmtHs = (n: number | null | undefined) => { const minutes = Math.max(0, Math.floor(n ?? 0)); return `${Math.floor(minutes / 60)}h ${minutes % 60}min`; };

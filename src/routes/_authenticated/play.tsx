@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, Map as MapIcon, Shirt, Shield, LogOut, Eye, Menu as MenuIcon } from "lucide-react";
+import { MessageSquare, Map as MapIcon, Shirt, Shield, Eye, Menu as MenuIcon, ZoomIn, ZoomOut, Backpack } from "lucide-react";
+import { PLAYER_MAX_HP } from "@/lib/game/play-rules";
 import { supabase } from "@/integrations/supabase/client";
 import { isDirection, sanitizeLook, type Look } from "@/game/catalog";
 import type { GameController } from "@/game/createGame";
@@ -83,7 +84,7 @@ function PlayPage() {
   const [toasts, setToasts] = useState<{ id: number; msg: string; kind: string }[]>([]);
   const gangInfo: GangInfo = { gangId: d.myGang?.id ?? null, tag: d.myGang?.tag ?? null, friendly: d.allies };
   const gangRef = useRef(gangInfo); gangRef.current = gangInfo;
-  const hpRef = useRef({ hp: 100, max: 100, prot: 0 });
+  const hpRef = useRef({ hp: PLAYER_MAX_HP, max: PLAYER_MAX_HP, prot: 0 });
   const seqRef = useRef<number | null>(null);
   const landscape = useLandscape();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -169,7 +170,7 @@ function PlayPage() {
         gang: gangRef.current,
         myHp: hpRef.current,
         attack: (targetId) => attackFn({ data: { targetId } }),
-        shoot: async (aim) => { const result = await shootFn({ data: { aim } }); await qc.invalidateQueries({ queryKey: ["g", "firearm"] }); return result; },
+        shoot: async (aim) => { const result = await shootFn({ data: { aim } }); qc.setQueryData(["g", "firearm", profile.id], (old: typeof d.firearm) => old ? { ...old, rounds: result.rounds } : old); return result; },
         firearms: firearmsRef.current,
         admin: adminRef.current.a,
         isAdmin: adminRef.current.on,
@@ -269,11 +270,11 @@ function PlayPage() {
   );
   const menuButtons = (
     <>
-      <IconButton icon={<MenuIcon />} label="Menú" onClick={() => setMainMenu(true)} />
       <IconButton icon={<MessageSquare />} label="Chat" onClick={() => setMenu("chat")} />
       <IconButton icon={<Shield />} label="Gang" tone="primary" badge={invites} onClick={() => setMenu("gang")} />
-      <IconButton icon={<MapIcon />} label="Map" onClick={() => setMapOpen(true)} />
-      <IconButton icon={<Shirt />} label="Wardrobe" onClick={() => setWardrobe(true)} />
+      <IconButton icon={<MenuIcon />} label="Menú" onClick={() => setMainMenu(true)} />
+      <IconButton icon={<Backpack />} label="Inventario" onClick={() => setMenu("bag")} />
+      <IconButton icon={<MapIcon />} label="Mapa" onClick={() => setMapOpen(true)} />
     </>
   );
 
@@ -289,21 +290,17 @@ function PlayPage() {
         <Button variant="ghost" onClick={() => setButtonsHidden(false)} aria-label="Show buttons" className="pixel-panel absolute z-10 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground"
           style={{ top: "max(8px, env(safe-area-inset-top))", left: "max(8px, env(safe-area-inset-left))" }}><Eye className="h-4 w-4" />Show buttons</Button>
       ) : landscape ? (
-        <div className="pointer-events-none absolute z-10 flex gap-1"
+        <div className="pointer-events-none absolute z-10 grid grid-cols-3 gap-1"
           style={{ top: "max(8px, env(safe-area-inset-top))", left: "max(12px, env(safe-area-inset-left))" }}>{menuButtons}</div>
       ) : (
-        <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 p-3"
+        <div className="pointer-events-none absolute left-3 top-0 z-10 grid grid-cols-2 gap-1"
           style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}>
-          <div className="min-w-0 max-[460px]:col-span-2">{info}</div>
-          <div className="flex gap-1.5 max-[460px]:col-span-2 max-[460px]:justify-end">
-            {menuButtons}
-            <IconButton icon={<LogOut />} label="Exit" onClick={signOut} size="sm" />
-          </div>
+          {menuButtons}
         </div>
       )}
-      <CombatHud d={d} mapId={hud.mapId ?? ""} landscape={landscape} hidden={buttonsHidden} info={info} onBag={() => setMenu("bag")}
+      <CombatHud d={d} mapId={hud.mapId ?? ""} landscape={landscape} hidden={buttonsHidden} onReload={() => ctrlRef.current?.reloadWeapon()} onBag={() => setMenu("bag")}
         onAttack={() => ctrlRef.current?.attack() ?? Promise.resolve(null)} />
-      {!buttonsHidden && <div className="pointer-events-none absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs text-muted-foreground md:block">WASD / arrows to move · Space to attack · tap yourself for your profile</div>}
+      {!buttonsHidden && <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1"><IconButton icon={<ZoomOut />} label="Alejar vista" onClick={() => ctrlRef.current?.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1 / 1.15)} size="sm" /><IconButton icon={<ZoomIn />} label="Acercar vista" onClick={() => ctrlRef.current?.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1.15)} size="sm" /></div>}
       <div className="pointer-events-none absolute left-1/2 top-24 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
         {toasts.map((t) => (
           <div key={t.id} className={`pixel-panel px-3 py-1.5 text-sm ${t.kind === "error" ? "text-destructive" : "text-accent"}`}>{t.msg}</div>

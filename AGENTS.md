@@ -30,6 +30,8 @@ use the editor.
 <!-- LOVABLE:END -->
 
 ## Game engine
+- Keep gameplay zoom following the local player and preserve its relative scale on rotation; editor-only panning may detach the camera. Why: zoom must not strand the player off-screen.
+- Store the two quick-slot assignments per player in browser storage, but validate equipment and item use through existing gameplay RPCs. Why: shortcuts are preferences, not ownership or permission.
 - All Phaser code lives in `src/game/` and is loaded only via dynamic import from `/play`; only pure-data modules (`catalog.ts`, `maps/`, `bases/defs.ts`, `combat/lineOfSight.ts`) are SSR-safe and may be imported statically or by server code. Why: Phaser touches `window` at import time.
 - Multiplayer: one realtime channel per map; Presence for who is online and their look, Broadcast `move` for positions. Why: keeps high-frequency traffic out of the database.
 - Character art is generated in code with one shared frame grid for BODY, HEAD and HAT, drawn in that order. Why: any part can be swapped on its own.

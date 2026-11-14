@@ -28,7 +28,7 @@ export function RankingPanel({ d }: { d: GameData }) {
           ))}
         </Section>
       )}
-      <p className="text-xs text-muted-foreground">Gangs earn hours for every minute they hold a base and a bonus for each capture. The daily ranking resets at midnight.</p>
+      <p className="text-xs text-muted-foreground">Cada base suma 1 minuto por minuto real. El ranking diario se reinicia a medianoche.</p>
     </div>
   );
 }

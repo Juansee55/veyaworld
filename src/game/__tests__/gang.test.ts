@@ -46,8 +46,9 @@ describe("combat line of sight", () => {
 });
 
 describe("gang hours format", () => {
-  it("shows whole hours with the hs suffix", () => {
-    expect(fmtHs(2000)).toBe("2000hs");
-    expect(fmtHs(12000.7)).toBe("12000hs");
+  it("converts earned real minutes into hours and minutes", () => {
+    expect(fmtHs(1)).toBe("0h 1min");
+    expect(fmtHs(60)).toBe("1h 0min");
+    expect(fmtHs(12000.7)).toBe("200h 0min");
   });
 });

@@ -18,6 +18,7 @@ import { DEFAULT_LOOK, sanitizeLook } from "../catalog";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Aim } from "@/lib/game/firearm-rules";
 import type { ShotResult } from "@/lib/game/firearms.functions";
+import { cameraZoom } from "@/lib/game/play-rules";
 
 export interface HudState { mapName?: string; mapId?: string; online?: number; status?: "connecting" | "online" | "offline" }
 
@@ -84,6 +85,7 @@ export class WorldScene extends Phaser.Scene {
   private editCh: RealtimeChannel | undefined;
   private reloadTimer?: Phaser.Time.TimerEvent;
   private editGfx: Phaser.GameObjects.Graphics | undefined;
+  private zoomFactor = 1;
 
   constructor() { super("world"); }
 
@@ -283,12 +285,22 @@ export class WorldScene extends Phaser.Scene {
     p.x = x; p.y = y; this.rebuildObjects();
   }
   pan(dx: number, dy: number) {
+    if (!this.editGfx) return;
     const cam = this.cameras.main; cam.stopFollow();
     cam.scrollX -= dx / cam.zoom; cam.scrollY -= dy / cam.zoom;
   }
   zoomAt(sx: number, sy: number, factor: number) {
+    if (!Number.isFinite(factor) || factor <= 0) return;
     const cam = this.cameras.main, before = cam.getWorldPoint(sx, sy);
-    cam.stopFollow(); cam.setZoom(Math.max(0.5, Math.min(8, cam.zoom * factor)));
+    const z = cameraZoom(cam.zoom, factor);
+    this.zoomFactor = z / computeZoom(this.scale.width, this.scale.height);
+    if (!this.editGfx) {
+      cam.setZoom(z); cam.startFollow(this.me, true, 1, 1); cam.centerOn(this.me.x, this.me.y);
+      this.me.setLabelResolution(z * 2);
+      for (const r of this.remotes.values()) r.sprite.setLabelResolution(z * 2);
+      return;
+    }
+    cam.stopFollow(); cam.setZoom(z);
     const after = cam.getWorldPoint(sx, sy);
     cam.scrollX += before.x - after.x; cam.scrollY += before.y - after.y;
   }
@@ -433,6 +445,8 @@ export class WorldScene extends Phaser.Scene {
     finally { this.attacking = false; }
   }
 
+  reloadWeapon() { this.me?.reload(); }
+
   async meleeAttack(): Promise<string | null> {
     if (!this.me || this.attacking) return null;
     this.me.swing();
@@ -489,8 +503,9 @@ export class WorldScene extends Phaser.Scene {
   private onResize(size: Phaser.Structs.Size) { this.applyZoom(size.width, size.height); }
 
   private applyZoom(w: number, h: number) {
-    const z = computeZoom(w, h);
+    const z = cameraZoom(computeZoom(w, h), this.zoomFactor);
     this.cameras.main.setZoom(z);
+    if (!this.editGfx) { this.cameras.main.startFollow(this.me, true, 1, 1); this.cameras.main.centerOn(this.me.x, this.me.y); }
     this.me?.setLabelResolution(z * 2);
     for (const r of this.remotes.values()) r.sprite.setLabelResolution(z * 2);
   }

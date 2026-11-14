@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { Backpack, Cross, Repeat } from "lucide-react";
+import { Backpack, Cross, Repeat, Crosshair } from "lucide-react";
+import { useQuickSlots } from "@/lib/game/quick-slots";
+import { FIREARM_COOLDOWN_MS } from "@/lib/game/firearm-rules";
+import crystal from "@/assets/weapons/crystal.png.asset.json";
+import pulse from "@/assets/weapons/pulse.png.asset.json";
+import carbine from "@/assets/weapons/carbine.png.asset.json";
 import { rpc } from "@/lib/game/api";
 import { notify } from "@/lib/game/notify";
 import type { GameData } from "@/lib/game/useGameData";
@@ -28,25 +33,25 @@ export function useCombat(d: GameData, mapId: string, onAttack: () => Promise<st
   const base = d.bases.find((b) => b.id === (zoneBase?.id ?? BASES.find((b) => mapId.startsWith(b.id + "_"))?.id));
   const owner = base?.owner_gang_id ? d.gangById[base.owner_gang_id] : null;
   const ownsHere = !!base && !!d.myGang && base.owner_gang_id === d.myGang.id;
-  const inArmory = ownsHere && base!.armory_map === mapId;
-  const inRespawn = ownsHere && base!.respawn_map === mapId;
+  const inArmory = ownsHere && base?.armory_map === mapId;
+  const inRespawn = ownsHere && base?.respawn_map === mapId;
 
   const attack = async () => {
     if (cool) return;
     setCool(true);
-    const err = await onAttack();
-    if (err) notify(err, "error");
-    setTimeout(() => setCool(false), Math.max(250, weapon?.cooldown_ms ?? 500));
+    try { const err = await onAttack(); if (err) notify(err, "error"); }
+    finally { setTimeout(() => setCool(false), FIREARM_COOLDOWN_MS); }
   };
   const cycle = () => {
     if (ownedOrder.length < 2) return notify("Capture a base armory to get more weapons");
     const i = ownedOrder.findIndex((w) => w.id === equipped);
-    const next = ownedOrder[(i + 1) % ownedOrder.length]!;
+    const next = ownedOrder[(i + 1) % ownedOrder.length];
+    if (!next) return;
     void rpc("equip_weapon", { _weapon: next.id }, `${next.name} equipped`);
   };
   const heal = () => void rpc("use_item", { _item: "bandage" });
   const claim = () => void (inArmory ? rpc("claim_armory", undefined, "Weapon added to your bag") : rpc("claim_supplies", undefined, "Bandages restocked"));
-  const claimLabel = inArmory ? `Take ${d.weapons.find((w) => w.id === base!.rack_weapon)?.name ?? "weapon"}` : inRespawn ? "Restock bandages" : null;
+  const claimLabel = inArmory ? `Take ${d.weapons.find((w) => w.id === base?.rack_weapon)?.name ?? "weapon"}` : inRespawn ? "Restock bandages" : null;
   const reload = async () => { const { error } = await supabase.rpc("reload_firearm"); if (error) notify(error.message, "error"); else await qc.invalidateQueries({ queryKey: ["g", "firearm"] }); };
   return { c, prot, weapon, bandages, base, owner, cool, attack, cycle, heal, claim, claimLabel, rounds: d.firearm?.rounds ?? 12, gralats: d.wallet?.gralats ?? 0, reload };
 }
@@ -55,7 +60,7 @@ type Combat = ReturnType<typeof useCombat>;
 function HpCard({ s }: { s: Combat }) {
   if (!s.c) return null;
   return (
-    <div className="pixel-panel px-2 py-1 text-xs">
+    <div className="game-control px-2 py-1 text-xs">
       <div className="flex justify-between gap-2"><span>HP</span><span>{s.c.hp}/{s.c.max_hp}</span></div>
       <HpBar hp={s.c.hp} max={s.c.max_hp} />
       <div className="mt-1 text-primary">{s.gralats} Gralats</div>
@@ -77,33 +82,37 @@ function BaseCard({ s }: { s: Combat }) {
 }
 function AttackButton({ s, big }: { s: Combat; big?: boolean }) {
   return (
-    <Button onPointerDown={(e) => { e.preventDefault(); void s.attack(); }} aria-label="Disparar"
-      className={`pixel-panel pointer-events-auto flex flex-col items-center justify-center rounded-full ${big ? "h-24 w-24 text-3xl" : "h-20 w-20 text-lg"} ${s.cool ? "opacity-50" : "text-primary"}`}>
-      ⌖<span className="text-xs">Disparar</span>
+    <Button variant="ghost" onClick={() => void s.attack()} aria-label="Disparar" title="Disparar" disabled={s.cool}
+      className={`game-control pointer-events-auto flex items-center justify-center rounded-full ${big ? "h-24 w-24" : "h-20 w-20"} ${s.cool ? "opacity-50" : "text-primary"}`}>
+      <Crosshair className="!h-10 !w-10" />
     </Button>
   );
 }
 
 /** HP, base status, quick buttons and the attack button, arranged for the current orientation. */
-export function CombatHud({ d, mapId, onAttack, landscape, hidden, onBag, info }: {
-  d: GameData; mapId: string; onAttack: () => Promise<string | null>; landscape: boolean; hidden: boolean; onBag: () => void; info: React.ReactNode;
+export function CombatHud({ d, mapId, onAttack, onReload, landscape, hidden, onBag }: {
+  d: GameData; mapId: string; onAttack: () => Promise<string | null>; onReload: () => void; landscape: boolean; hidden: boolean; onBag: () => void;
 }) {
   const s = useCombat(d, mapId, onAttack);
+  const { slots } = useQuickSlots(d.firearm?.user_id ?? "");
+  const activate = async (value: string) => {
+    if (value.startsWith("gun:")) { const { error } = await supabase.rpc("equip_firearm", { _gun: value.slice(4) }); if (error) notify(error.message, "error"); }
+    else if (value.startsWith("item:")) { const id = value.slice(5), item = d.items.find((i) => i.id === id); if (item?.category === "equipment") await rpc("set_equipment", { _item: id, _on: true }); else await rpc("use_item", { _item: id }); }
+    else onBag();
+  };
+  const pictures: Record<string, string> = { gun_crystal: crystal.url, gun_pulse: pulse.url, gun_carbine: carbine.url };
   if (hidden) return null;
   const quick = (
     <>
-      <IconButton icon={<Backpack />} label="Bag" onClick={onBag} />
-      <IconButton icon={<Repeat />} label="Recargar" onClick={() => void s.reload()} />
-      <IconButton icon={<Cross />} label={`Heal ${s.bandages}`} onClick={s.heal} disabled={s.bandages === 0} />
-      <IconButton icon={<Repeat />} label={s.weapon?.name.split(" ")[0] ?? "Fists"} onClick={s.cycle} />
+      {slots.map((value, index) => <Button key={index} variant="ghost" size="icon" aria-label={`Usar preset ${index + 1}`} title={`Preset ${index + 1}`} onClick={() => void activate(value)} onContextMenu={(e) => { e.preventDefault(); onBag(); }} className="game-control pointer-events-auto relative h-14 w-14 p-1">{value.startsWith("gun:") ? (pictures[value.slice(4)] ? <img src={pictures[value.slice(4)]} alt="" className="h-8 w-11 object-contain [image-rendering:pixelated]" /> : <Crosshair className="!h-7 !w-7" />) : value ? <Cross className="!h-7 !w-7 text-accent" /> : <Backpack className="!h-7 !w-7" />}<span className="absolute bottom-0 right-1 text-xs text-foreground">{index + 1}</span></Button>)}
+      <IconButton icon={<Repeat />} label="Recargar" onClick={() => { void s.reload().then(onReload); }} />
     </>
   );
-  const claim = s.claimLabel && <button className="pixel-panel pointer-events-auto px-3 py-2 text-sm text-primary" onClick={s.claim}>{s.claimLabel}</button>;
+  const claim = s.claimLabel && <Button variant="secondary" className="pointer-events-auto" onClick={s.claim}>{s.claimLabel}</Button>;
 
   if (landscape) return (
     <>
-      <div className="pointer-events-none absolute left-3 z-10 flex max-w-[calc(100%-110px)] items-start gap-2" style={{ top: "calc(max(8px, env(safe-area-inset-top)) + 64px)" }}>
-        {info}
+      <div className="pointer-events-none absolute left-3 z-10 flex max-w-[calc(100%-110px)] items-start gap-2" style={{ top: "calc(max(8px, env(safe-area-inset-top)) + 112px)" }}>
         <div className="w-28 shrink-0"><HpCard s={s} /></div>
         {s.base && <div className="hidden w-32 min-w-0 lg:block"><BaseCard s={s} /></div>}
       </div>
@@ -118,16 +127,14 @@ export function CombatHud({ d, mapId, onAttack, landscape, hidden, onBag, info }
 
   return (
     <>
-      <div className="pointer-events-none absolute left-3 z-10 flex w-40 flex-col gap-2" style={{ top: "calc(max(12px, env(safe-area-inset-top)) + 64px)" }}>
+      <div className="pointer-events-none absolute left-1/2 z-10 flex w-28 -translate-x-1/2 flex-col gap-2" style={{ top: "max(12px, env(safe-area-inset-top))" }}>
         <HpCard s={s} /><BaseCard s={s} />
       </div>
-      <div className="pointer-events-none absolute right-3 z-10 flex flex-col items-end gap-2" style={{ bottom: "max(20px, env(safe-area-inset-bottom))" }}>
+      <div className="pointer-events-none absolute right-3 top-3 z-10 flex flex-col items-end gap-2">
         {claim}
-        <div className="flex items-end gap-2">
-          <div className="flex flex-col gap-2">{quick}</div>
-          <AttackButton s={s} />
-        </div>
+        <div className="flex flex-col gap-2">{quick}</div>
       </div>
+      <div className="pointer-events-none absolute bottom-6 right-5 z-10"><AttackButton s={s} /></div>
     </>
   );
 }

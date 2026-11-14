@@ -3,13 +3,23 @@ import { rpc } from "@/lib/game/api";
 import type { GameData } from "@/lib/game/useGameData";
 import { Empty, PxButton, Row, Section } from "./ui";
 import { FirearmPanel } from "../FirearmPanel";
+import { useQuickSlots } from "@/lib/game/quick-slots";
+import { GUNS } from "@/lib/game/firearm-rules";
+import { Crosshair } from "lucide-react";
 
 export function InventoryPanel({ d }: { d: GameData }) {
   const [tab, setTab] = useState<"weapons" | "equipment" | "items">("weapons");
   const owned = new Map(d.myWeapons.map((w) => [w.weapon_id, w]));
   const inv = new Map(d.myItems.map((i) => [i.item_id, i]));
+  const { slots, assign } = useQuickSlots(d.firearm?.user_id ?? "");
+  const options = [
+    ...GUNS.map((g) => ({ value: `gun:${g.id}`, name: g.name })),
+    ...d.customGuns.map((g) => ({ value: `gun:custom:${g.id}`, name: g.name })),
+    ...d.items.filter((i) => (inv.get(i.id)?.qty ?? 0) > 0).map((i) => ({ value: `item:${i.id}`, name: i.name })),
+  ];
   return (
     <div>
+      <section className="mb-4 border-b border-border pb-4"><h3 className="mb-2 text-primary">Accesos rápidos</h3><div className="grid grid-cols-2 gap-3">{slots.map((value, index) => <label key={index} className="flex min-w-0 flex-col gap-2"><span className="flex items-center gap-2"><Crosshair className="h-4 w-4" />Preset {index + 1}</span><select aria-label={`Preset ${index + 1}`} value={value} onChange={(e) => assign(index, e.target.value)} className="w-full min-w-0 border border-border bg-input p-2 text-foreground"><option value="">Vacío</option>{options.map((o) => <option key={o.value} value={o.value}>{o.name}</option>)}</select></label>)}</div></section>
       <FirearmPanel d={d} />
       <div className="mb-3 flex gap-1">{(["weapons", "equipment", "items"] as const).map((t) => (
         <PxButton key={t} tone={t === tab ? "primary" : "default"} className="flex-1 capitalize" onClick={() => setTab(t)}>{t}</PxButton>

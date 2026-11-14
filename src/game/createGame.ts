@@ -35,6 +35,7 @@ export interface GameController {
   setFirearms(guns: Record<string, string>): void;
   respawn(mapId: string, x: number, y: number): void;
   attack(): Promise<string | null>;
+  reloadWeapon(): void;
   /** Did a tap at these viewport coordinates hit the local player? */
   hitTestSelf(clientX: number, clientY: number): boolean;
   snapshot(): WorldSnapshot | null;
@@ -95,6 +96,7 @@ export async function createGame(parent: HTMLElement, opts: GameOptions): Promis
     setMyHp(hp, max, prot) { ctx.myHp = { hp, max, prot }; const s = scene(); if (s?.sys.isActive()) s.setMyHp(hp, max, prot); },
     respawn(mapId, x, y) { scene()?.respawn(mapId, x, y); },
     attack() { return scene()?.attack() ?? Promise.resolve(null); },
+    reloadWeapon() { scene()?.reloadWeapon(); },
     hitTestSelf(cx, cy) {
       const s = scene(); if (!s?.sys.isActive()) return false;
       const r = parent.getBoundingClientRect();

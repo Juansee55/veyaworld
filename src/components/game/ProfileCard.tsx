@@ -35,6 +35,7 @@ export function ProfileCard({ d, look, username, mapName, landscape, buttonsHidd
     ["Rank", g ? ROLE[d.myMember?.role ?? ""] ?? "Member" : "—"],
     ["Gang hours", g ? `${fmtHs(today)} today · ${fmtHs(total)}` : "—"],
     ["Health", c ? `${c.hp}/${c.max_hp}` : "—", "text-destructive"],
+    ["Gralats", (d.wallet?.gralats ?? 0).toLocaleString(), "text-primary"],
     ["Weapon", weapon ? `${weapon.name} (${weapon.damage} dmg)` : "Fists"],
     ["Bases", g ? `${bases} of ${d.bases.length}` : "—"],
     ["Allies", g ? `${d.allies.length} gangs` : "—"],

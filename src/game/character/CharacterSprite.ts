@@ -5,6 +5,7 @@ import {
 } from "../catalog";
 import { animFrame, ensureLayerTexture, hatTransform, MELEE_FACING, resolveKey, sheetFor, type Layer } from "../art/layers";
 import { firearmArt } from "../art/firearmArt";
+import { firearmPose } from "@/lib/game/play-rules";
 
 const PARTS = ["body", "head", "hat"] as const;
 type Part = (typeof PARTS)[number];
@@ -20,6 +21,8 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
   private melee: Phaser.GameObjects.Sprite;
   private firearm: Phaser.GameObjects.Image;
   private gunId = "";
+  private shotAt = -1e9;
+  private reloadUntil = 0;
   private keys: Record<Layer, string> = { body: "", head: "", hat: "", melee: "" };
   private shadow: Phaser.GameObjects.Ellipse;
   private label: Phaser.GameObjects.Text;
@@ -68,6 +71,7 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
   setFirearm(id: string) {
     if (id === this.gunId) return;
     this.gunId = id;
+    this.firearm.setVisible(false);
     void firearmArt(id).then((canvas) => {
       if (!canvas || !this.scene || this.gunId !== id) return;
       const key = `firearm:${id}`;
@@ -77,13 +81,19 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
   }
 
   shoot() {
+    this.shotAt = this.clock;
     const vector = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }[this.dir];
-    const startX = this.x + vector.x * 18, startY = this.y - 9 + vector.y * 18;
+    const pose = firearmPose(this.dir, this.clock, false, -1e9);
+    const startX = this.x + (pose.x + vector.x * 12) * this.scaleX, startY = this.y + (pose.y + vector.y * 12) * this.scaleY;
     const bullet = this.scene.add.rectangle(startX, startY, 3, 3, 0xffe58a).setDepth(200000);
     this.scene.tweens.add({ targets: bullet, x: startX + vector.x * 240, y: startY + vector.y * 240, duration: 360, onComplete: () => bullet.destroy() });
     const flash = this.scene.add.circle(startX, startY, 4, 0xffe58a).setDepth(200000);
     this.scene.time.delayedCall(70, () => flash.destroy());
+    const casing = this.scene.add.rectangle(this.x + pose.x, this.y + pose.y, 2, 1, 0xe5bd67).setDepth(this.depth + 1);
+    this.scene.tweens.add({ targets: casing, x: casing.x + 8, y: casing.y + 6, angle: 180, alpha: 0, duration: 320, onComplete: () => casing.destroy() });
   }
+
+  reload() { this.reloadUntil = this.clock + 1200; }
 
   /** Point a layer at its texture; custom uploads load in the background, then rebind. */
   private bind(layer: Layer) {
@@ -194,8 +204,9 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
       ? WALK_SEQUENCE[Math.floor(this.t / 130) % WALK_SEQUENCE.length] ?? 0
       : IDLE_SEQUENCE[Math.floor(this.t / 650) % IDLE_SEQUENCE.length] ?? 0;
     const f = frameIndex(this.dir, col);
-    const angle = { right: 0, down: 90, left: 180, up: -90 }[this.dir];
-    this.firearm.setAngle(angle).setPosition(this.dir === "left" ? -10 : 10, this.dir === "up" ? -13 : -9);
+    const pose = firearmPose(this.dir, this.clock, this.anim === "walk", this.shotAt, this.reloadUntil);
+    this.firearm.setAngle(pose.angle).setPosition(pose.x, pose.y);
+    this.moveTo(this.firearm, this.dir === "up" ? 1 : 5);
     for (const layer of PARTS) {
       const key = this.keys[layer];
       if (key) this.parts[layer].setFrame(animFrame(sheetFor(key), this.clock) * 16 + f);

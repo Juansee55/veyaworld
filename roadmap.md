@@ -1,5 +1,12 @@
 # Veya World roadmap
 
+## Weapon animation and reference HUD
+- [ ] Animate carried weapons, recoil and reload
+- [ ] Keep zoom following the player in both orientations
+- [ ] Apply 50/50 health and one real minute per owned base
+- [ ] Show Gralats on profiles and add two configurable inventory shortcuts
+- [ ] Verify current changes in signed-in gameplay and tests
+
 ## Gralats and firearms
 - [ ] Persistent Gralats balance and administrator awards
 - [ ] Add the three supplied guns, visible beside players, with shooting and reload
