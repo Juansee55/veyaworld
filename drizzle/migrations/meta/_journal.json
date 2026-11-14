@@ -15,6 +15,34 @@
       "when": 1794616643708,
       "tag": "0001_gang_system_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794616789456,
+      "tag": "0002_gang_system_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794616803448,
+      "tag": "0003_player_custom_art",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794616827538,
+      "tag": "0004_admin_powers",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794616845920,
+      "tag": "0005_world_editor",
+      "breakpoints": true
     }
   ]
 }

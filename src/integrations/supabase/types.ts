@@ -532,6 +532,86 @@ export type Database = {
         }
         Relationships: []
       }
+      player_admin: {
+        Row: {
+          fly: boolean
+          invisible: boolean
+          noclip: boolean
+          size: number
+          speed: number
+          title: string | null
+          title_color: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          fly?: boolean
+          invisible?: boolean
+          noclip?: boolean
+          size?: number
+          speed?: number
+          title?: string | null
+          title_color?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          fly?: boolean
+          invisible?: boolean
+          noclip?: boolean
+          size?: number
+          speed?: number
+          title?: string | null
+          title_color?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      player_art: {
+        Row: {
+          created_at: string
+          frame_ms: number
+          frames: number
+          id: string
+          kind: string
+          name: string
+          original_path: string
+          sheet_path: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          frame_ms?: number
+          frames?: number
+          id?: string
+          kind: string
+          name: string
+          original_path: string
+          sheet_path: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          frame_ms?: number
+          frames?: number
+          id?: string
+          kind?: string
+          name?: string
+          original_path?: string
+          sheet_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_art_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       player_combat: {
         Row: {
           deaths: number
@@ -715,6 +795,7 @@ export type Database = {
           head_id: string
           id: string
           map_id: string
+          melee_id: string
           pos_x: number
           pos_y: number
           updated_at: string
@@ -728,6 +809,7 @@ export type Database = {
           head_id?: string
           id: string
           map_id?: string
+          melee_id?: string
           pos_x?: number
           pos_y?: number
           updated_at?: string
@@ -741,10 +823,26 @@ export type Database = {
           head_id?: string
           id?: string
           map_id?: string
+          melee_id?: string
           pos_x?: number
           pos_y?: number
           updated_at?: string
           username?: string
+        }
+        Relationships: []
+      }
+      tick_state: {
+        Row: {
+          id: number
+          last_tick_at: string
+        }
+        Insert: {
+          id: number
+          last_tick_at?: string
+        }
+        Update: {
+          id?: number
+          last_tick_at?: string
         }
         Relationships: []
       }
@@ -793,12 +891,230 @@ export type Database = {
         }
         Relationships: []
       }
+      world_furniture: {
+        Row: {
+          created_at: string
+          h: number
+          id: string
+          name: string
+          solid: boolean[]
+          tiles: number[]
+          w: number
+        }
+        Insert: {
+          created_at?: string
+          h: number
+          id?: string
+          name: string
+          solid: boolean[]
+          tiles: number[]
+          w: number
+        }
+        Update: {
+          created_at?: string
+          h?: number
+          id?: string
+          name?: string
+          solid?: boolean[]
+          tiles?: number[]
+          w?: number
+        }
+        Relationships: []
+      }
+      world_maps: {
+        Row: {
+          created_at: string
+          ground_tile: number
+          height: number
+          id: string
+          name: string
+          spawn_x: number
+          spawn_y: number
+          width: number
+        }
+        Insert: {
+          created_at?: string
+          ground_tile?: number
+          height?: number
+          id: string
+          name: string
+          spawn_x?: number
+          spawn_y?: number
+          width?: number
+        }
+        Update: {
+          created_at?: string
+          ground_tile?: number
+          height?: number
+          id?: string
+          name?: string
+          spawn_x?: number
+          spawn_y?: number
+          width?: number
+        }
+        Relationships: []
+      }
+      world_npcs: {
+        Row: {
+          body_id: string
+          dialog: string
+          dir: string
+          hat_id: string
+          head_id: string
+          id: string
+          map_id: string
+          name: string
+          x: number
+          y: number
+        }
+        Insert: {
+          body_id?: string
+          dialog?: string
+          dir?: string
+          hat_id?: string
+          head_id?: string
+          id?: string
+          map_id: string
+          name?: string
+          x: number
+          y: number
+        }
+        Update: {
+          body_id?: string
+          dialog?: string
+          dir?: string
+          hat_id?: string
+          head_id?: string
+          id?: string
+          map_id?: string
+          name?: string
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
+      world_props: {
+        Row: {
+          furniture_id: string
+          id: string
+          map_id: string
+          x: number
+          y: number
+        }
+        Insert: {
+          furniture_id: string
+          id?: string
+          map_id: string
+          x: number
+          y: number
+        }
+        Update: {
+          furniture_id?: string
+          id?: string
+          map_id?: string
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_props_furniture_id_fkey"
+            columns: ["furniture_id"]
+            isOneToOne: false
+            referencedRelation: "world_furniture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      world_tiles: {
+        Row: {
+          layer: string
+          map_id: string
+          tile: number
+          x: number
+          y: number
+        }
+        Insert: {
+          layer: string
+          map_id: string
+          tile?: number
+          x: number
+          y: number
+        }
+        Update: {
+          layer?: string
+          map_id?: string
+          tile?: number
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
+      world_warps: {
+        Row: {
+          h: number
+          id: string
+          map_id: string
+          to_map: string
+          to_x: number
+          to_y: number
+          w: number
+          x: number
+          y: number
+        }
+        Insert: {
+          h?: number
+          id?: string
+          map_id: string
+          to_map: string
+          to_x: number
+          to_y: number
+          w?: number
+          x: number
+          y: number
+        }
+        Update: {
+          h?: number
+          id?: string
+          map_id?: string
+          to_map?: string
+          to_x?: number
+          to_y?: number
+          w?: number
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      active_ally_count: { Args: { _g: string }; Returns: number }
+      am_admin: { Args: never; Returns: boolean }
       are_allied: { Args: { _a: string; _b: string }; Returns: boolean }
+      award_hours: {
+        Args: { _amount: number; _gang: string }
+        Returns: undefined
+      }
+      base_tick: { Args: never; Returns: undefined }
+      cancel_invitation: { Args: { _id: string }; Returns: undefined }
+      cfg: { Args: { _key: string }; Returns: number }
+      cfg_text: { Args: { _key: string }; Returns: string }
+      claim_armory: { Args: never; Returns: string }
+      claim_supplies: { Args: never; Returns: undefined }
+      create_gang: {
+        Args: { _color: string; _emblem: string; _name: string; _tag: string }
+        Returns: string
+      }
+      delete_chat: {
+        Args: { _channel: string; _id: string }
+        Returns: undefined
+      }
+      disband_gang: { Args: never; Returns: undefined }
+      ensure_player: { Args: never; Returns: undefined }
+      equip_weapon: { Args: { _weapon: string }; Returns: undefined }
+      game_today: { Args: never; Returns: string }
       gang_of: { Args: { _user_id: string }; Returns: string }
       gang_role_of: { Args: { _user_id: string }; Returns: string }
       has_role: {
@@ -808,6 +1124,75 @@ export type Database = {
         }
         Returns: boolean
       }
+      invite_player: { Args: { _username: string }; Returns: undefined }
+      kick_member: { Args: { _user: string }; Returns: undefined }
+      leave_gang: { Args: never; Returns: undefined }
+      list_admins: {
+        Args: never
+        Returns: {
+          user_id: string
+          username: string
+        }[]
+      }
+      mute_user: {
+        Args: { _minutes: number; _user: string }
+        Returns: undefined
+      }
+      remove_alliance: { Args: { _id: string }; Returns: undefined }
+      report_state: {
+        Args: { _map: string; _x: number; _y: number }
+        Returns: boolean
+      }
+      request_alliance: { Args: { _tag: string }; Returns: undefined }
+      require_staff: { Args: never; Returns: string }
+      require_uid: { Args: never; Returns: string }
+      resolve_attack: {
+        Args: { _attacker: string; _target: string }
+        Returns: Json
+      }
+      respawn_point: {
+        Args: { _user: string }
+        Returns: Record<string, unknown>
+      }
+      respond_alliance: {
+        Args: { _accept: boolean; _id: string }
+        Returns: undefined
+      }
+      respond_invitation: {
+        Args: { _accept: boolean; _id: string }
+        Returns: undefined
+      }
+      send_chat: {
+        Args: { _body: string; _channel: string }
+        Returns: undefined
+      }
+      set_admin_fx: {
+        Args: {
+          _fly: boolean
+          _invisible: boolean
+          _noclip: boolean
+          _size: number
+          _speed: number
+          _title: string
+          _title_color: string
+        }
+        Returns: undefined
+      }
+      set_admin_role: {
+        Args: { _on: boolean; _username: string }
+        Returns: undefined
+      }
+      set_equipment: {
+        Args: { _item: string; _on: boolean }
+        Returns: undefined
+      }
+      set_member_role: {
+        Args: { _role: string; _user: string }
+        Returns: undefined
+      }
+      set_preferred_base: { Args: { _base: string }; Returns: undefined }
+      transfer_leadership: { Args: { _user: string }; Returns: undefined }
+      use_item: { Args: { _item: string }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
