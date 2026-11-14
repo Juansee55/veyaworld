@@ -3,6 +3,7 @@ import { BODIES, DEFAULT_LOOK, DIRECTIONS, HATS, HEADS, MELEES, sanitizeUsername
 import type { ArtKind, ArtLayout } from "@/game/art/layout";
 import { deletePlayerArt, listMyArt, savePlayerArt, type PlayerArt } from "@/lib/game/playerArt";
 import { Button } from "@/components/ui/button";
+import { notify } from "@/lib/game/notify";
 
 interface Props {
   look: Look;
@@ -129,10 +130,10 @@ function Uploader({ onDone }: { onDone: (art: PlayerArt) => void }) {
         </div>
       ) : <p className="text-xs text-muted-foreground">Use one weapon image pointing up; it is rotated for every direction.</p>}
       <input type="file" accept="image/png,image/gif" onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        className="text-sm text-foreground file:mr-2 file:border-2 file:border-border file:bg-secondary file:px-2 file:py-1 file:text-secondary-foreground" />
+        className="w-full min-w-0 text-sm text-foreground file:mr-2 file:border-2 file:border-border file:bg-secondary file:px-2 file:py-1 file:text-secondary-foreground" />
       {result && (
-        <div className="flex items-center gap-3">
-          <canvas ref={ref} width={kind === "melee" ? 256 : 128} height={kind === "melee" ? 32 : 192} className="bg-muted [image-rendering:pixelated]" />
+        <div className="flex flex-wrap items-center gap-3">
+          <canvas ref={ref} width={kind === "melee" ? 256 : 128} height={kind === "melee" ? 32 : 192} className="max-w-full bg-muted [image-rendering:pixelated]" />
           <span className="text-xs text-muted-foreground">{result.frames > 1 ? `${result.frames} frames` : "Still image"}</span>
         </div>
       )}
@@ -153,7 +154,8 @@ export function Wardrobe({ look, username, saving, onClose, onSave }: Props) {
   useEffect(refresh, []);
   const custom = (kind: ArtKind) => mine.filter((a) => a.kind === kind).map((a) => ({ id: `custom:${a.id}`, label: `★ ${a.name}` }));
   const remove = async (art: PlayerArt) => {
-    await deletePlayerArt(art).catch(() => undefined);
+    try { await deletePlayerArt(art); }
+    catch (error) { notify(error instanceof Error ? error.message : "Upload could not be deleted.", "error"); return; }
     const key = `${art.kind}_id` as keyof Look;
     if (draft[key] === `custom:${art.id}`) setDraft({ ...draft, [key]: DEFAULT_LOOK[key] });
     refresh();
@@ -183,7 +185,7 @@ export function Wardrobe({ look, username, saving, onClose, onSave }: Props) {
               <ul className="flex flex-col gap-1">
                 {mine.map((a) => (
                   <li key={a.id} className="flex items-center justify-between text-sm">
-                    <span>{a.kind} · {a.name}{a.frames > 1 ? " (animated)" : ""}</span>
+                    <span className="min-w-0 flex-1 break-words">{a.kind} · {a.name}{a.frames > 1 ? " (animated)" : ""}</span>
                     <Button variant="ghost" className="px-2 py-0.5 text-xs text-destructive" onClick={() => void remove(a)}>Delete</Button>
                   </li>
                 ))}

@@ -5,6 +5,7 @@ import { BODIES, HATS, HEADS } from "@/game/catalog";
 import { TILE_COUNT } from "@/game/maps/tiles";
 import { notify } from "@/lib/game/notify";
 import { PxButton, PxInput } from "./hub/ui";
+import { BASES, roomMapId } from "@/game/bases/defs";
 
 type Tool = "tile" | "prop" | "npc" | "warp" | "remove" | "maps" | "furniture";
 type Layer = "ground" | "decor" | "objects" | "above";
@@ -48,7 +49,11 @@ export function MapEditor({ ctrl, tapRef, onClose }: { ctrl: () => GameControlle
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const allMaps = useMemo(() => [{ id: "village", name: "Veya City" }, ...maps], [maps]);
+  const allMaps = useMemo(() => [
+    { id: "village", name: "Veya City" },
+    ...BASES.flatMap((base) => base.rooms.map((room) => ({ id: roomMapId(base.id, room.key), name: `${base.name} · ${room.key}` }))),
+    ...maps,
+  ], [maps]);
 
   tapRef.current = async (t: Tap) => {
     if (tool === "tile") {

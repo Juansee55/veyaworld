@@ -38,3 +38,7 @@ use the editor.
 - Clients only SELECT gang/base/combat/chat tables; every write goes through SECURITY DEFINER SQL functions that validate the caller. Why: gameplay must be server-authoritative.
 - Attacks go through the `attackPlayer` server function (wall check with the TS map data), which then calls the service-role-only `resolve_attack` SQL function. Why: walls live in TS map data, not the database.
 - Base capture/repair and hours are processed by `base_tick`, which clients call every 3 s and the server throttles globally. Why: no in-memory server state on workers.
+
+## Migration reliability
+- Import pointer-only assets into the current project rather than reusing source-project pointers; optional art failures use the existing procedural fallback so one missing image cannot prevent gameplay.
+- Keep the auth state subscription in the root route and password recovery on a public page; recovery callbacks must not redirect into the game before password setup.

@@ -1,5 +1,14 @@
 # Veya World roadmap
 
+## Migration completion
+- [x] Audit and fix broken asset pointers, initialization, save errors and missing editor entry
+- [x] Verify signed-in gameplay, wardrobe uploads, gang create/delete, chat and portrait/landscape mobile rendering
+- [x] Implement account recovery and password setup
+- [ ] Verify email-link password setup and imported account access (blocked: user exports and user email interaction)
+- [ ] Verify admin editor writes (blocked: no migrated admin identity/role)
+- [ ] Import previous records and users (blocked: previous-project CSV/JSON exports not provided)
+- [ ] Restore previous uploaded file bytes (blocked: previous-project file export not provided)
+
 ## Gang System 1.0
 - [x] Adapt all 8 uploaded character sheets to the existing modular frame grid
 - [x] Fix Phaser bundling regression and verify the existing playable world
@@ -16,7 +25,7 @@
 - [ ] Two-player combat test (needs a second test account)
 
 ## Uploaded art integration
-- [ ] Apply uploaded atlas to world tiles without changing collisions
-- [ ] Add built-in animated hat and melee skins to characters and wardrobe
-- [ ] Persist player-owned body, head, hat and melee uploads with previews
-- [ ] Verify base reports/ticks, uploads and mobile rendering in the live game
+- [x] Apply uploaded atlas to world tiles without changing collisions
+- [x] Add built-in animated hat and melee skins to characters and wardrobe
+- [x] Persist player-owned body, head, hat and melee uploads with previews
+- [x] Verify base reports/ticks, uploads and mobile rendering in the live game

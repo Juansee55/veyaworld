@@ -7,7 +7,7 @@ const SIZES: [string, number][] = [["Small", 0.6], ["Normal", 1], ["Medium", 1.5
 const SPEEDS: [string, number][] = [["Normal", 1], ["Fast", 1.8], ["Turbo", 3]];
 
 /** Secret admin powers. Every change is checked by the server (admins only). */
-export function AdminPanel({ fx, onClose }: { fx?: AdminFx | undefined; onClose: () => void }) {
+export function AdminPanel({ fx, onClose, onWorldEdit }: { fx?: AdminFx | undefined; onClose: () => void; onWorldEdit: () => void }) {
   const [f, setF] = useState<AdminFx>(fx ?? { title: "", title_color: "#ff6ad5", invisible: false, fly: false, noclip: false, size: 1, speed: 1 });
   const [admins, setAdmins] = useState<{ user_id: string; username: string }[]>([]);
   const [who, setWho] = useState("");
@@ -27,6 +27,7 @@ export function AdminPanel({ fx, onClose }: { fx?: AdminFx | undefined; onClose:
     <div className="absolute inset-0 z-30 flex flex-col bg-background/95 p-4" style={{ paddingTop: "max(16px, env(safe-area-inset-top))" }}>
       <div className="mb-3 flex items-center justify-between"><h2 className="text-2xl text-primary">Admin</h2><PxButton onClick={onClose}>Back</PxButton></div>
       <div className="min-h-0 flex-1 overflow-y-auto">
+        <Section title="World"><PxButton tone="primary" onClick={onWorldEdit}>Edit world</PxButton></Section>
         <Section title="Title next to your name">
           <div className="flex gap-2">
             <PxInput value={f.title ?? ""} maxLength={16} placeholder="★ Owner" onChange={(e) => setF({ ...f, title: e.target.value })} className="flex-1" />

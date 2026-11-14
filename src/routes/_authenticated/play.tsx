@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageSquare, Map as MapIcon, Shirt, Shield, LogOut, Eye } from "lucide-react";
@@ -21,6 +21,9 @@ import { ProfileCard } from "@/components/game/ProfileCard";
 import { WorldMap } from "@/components/game/WorldMap";
 import { AdminPanel } from "@/components/game/AdminPanel";
 import { useLandscape } from "@/hooks/use-landscape";
+import { Button } from "@/components/ui/button";
+import { notify } from "@/lib/game/notify";
+import { MapEditor } from "@/components/game/MapEditor";
 
 const profileQuery = queryOptions({
   queryKey: ["my-profile"],
@@ -45,6 +48,8 @@ export const Route = createFileRoute("/_authenticated/play")({
       { name: "description", content: "Explore Veya World with other players in real time." },
       { property: "og:title", content: "Play — Veya World" },
       { property: "og:description", content: "Explore Veya World with other players in real time." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(profileQuery),
@@ -54,11 +59,14 @@ export const Route = createFileRoute("/_authenticated/play")({
 function PlayPage() {
   const { data: profile } = useSuspenseQuery(profileQuery);
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const hostRef = useRef<HTMLDivElement>(null);
   const ctrlRef = useRef<GameController | null>(null);
   const [hud, setHud] = useState<HudState>({ mapName: "", online: 1, status: "connecting" });
   const [wardrobe, setWardrobe] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [gameError, setGameError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const look = sanitizeLook(profile);
   const d = useGameData(profile.id);
   const attackFn = useServerFn(attackPlayer);
@@ -73,10 +81,13 @@ function PlayPage() {
   const [mapOpen, setMapOpen] = useState(false);
   const [buttonsHidden, setButtonsHidden] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const editorTapRef = useRef<((t: { mapId: string; x: number; y: number }) => void) | null>(null);
   const overlayOpen = !!menu || wardrobe || profileOpen || mapOpen || adminOpen;
   const adminRef = useRef({ a: d.admin, on: d.isAdmin }); adminRef.current = { a: d.admin, on: d.isAdmin };
   const tapRef = useRef<{ x: number; y: number; t: number; id: number } | null>(null);
   const getSnapshot = useCallback(() => ctrlRef.current?.snapshot() ?? null, []);
+  const getController = useCallback(() => ctrlRef.current, []);
 
   useEffect(() => onNotify((msg, kind) => {
     const id = Date.now() + Math.random();
@@ -124,6 +135,7 @@ function PlayPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setGameError(false);
     (async () => {
       await document.fonts?.load('10px "VT323"').catch(() => undefined);
       const { createGame } = await import("@/game/createGame");
@@ -144,32 +156,51 @@ function PlayPage() {
         isAdmin: adminRef.current.on,
       });
       if (cancelled) controller.destroy(); else ctrlRef.current = controller;
-    })();
+    })().catch(() => {
+      if (!cancelled) { setGameError(true); setHud((h) => ({ ...h, status: "offline" })); }
+    });
     return () => { cancelled = true; ctrlRef.current?.destroy(); ctrlRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.id]);
+  }, [profile.id, attempt]);
 
   const saveLook = async (next: Look, username: string) => {
     setSaving(true);
+    try {
     const { data, error } = await supabase.from("profiles").update({ ...next, username }).eq("id", profile.id).select("*").single();
-    setSaving(false);
-    if (error) return;
+    if (error) throw error;
     qc.setQueryData(profileQuery.queryKey, data);
     ctrlRef.current?.setLook(next, username);
     setWardrobe(false);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Your look could not be saved. Please try again.", "error");
+    } finally { setSaving(false); }
   };
 
   const dot = hud.status === "online" ? "bg-accent" : hud.status === "offline" ? "bg-destructive" : "bg-primary animate-pulse";
   const invites = !d.myGang ? d.invites.length : 0;
-  const signOut = () => void supabase.auth.signOut();
+  const signOut = () => void (async () => {
+    await qc.cancelQueries();
+    ctrlRef.current?.destroy(); ctrlRef.current = null;
+    qc.clear();
+    await supabase.auth.signOut();
+    await navigate({ to: "/auth", replace: true });
+  })();
 
   // Tap (not drag) on your own character opens your profile.
   const onDown = (e: React.PointerEvent) => { tapRef.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId }; };
   const onUp = (e: React.PointerEvent) => {
     const s = tapRef.current; tapRef.current = null;
-    if (!s || s.id !== e.pointerId || overlayOpen) return;
+    if (!s || s.id !== e.pointerId) return;
     if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 12 || performance.now() - s.t > 400) return;
-    if ((e.target as HTMLElement).closest("button, input, textarea, a")) return;
+    if ((e.target as HTMLElement).closest("button, input, textarea, select, a, [data-editor-panel]")) return;
+    if (editorOpen) {
+      if (d.isAdmin) {
+        const tile = ctrlRef.current?.tileAt(e.clientX, e.clientY);
+        if (tile) editorTapRef.current?.(tile);
+      }
+      return;
+    }
+    if (overlayOpen) return;
     if (ctrlRef.current?.hitTestSelf(e.clientX, e.clientY)) setProfileOpen(true);
   };
 
@@ -194,10 +225,14 @@ function PlayPage() {
   return (
     <div className="fixed inset-0 overflow-hidden bg-background touch-none select-none" onPointerDownCapture={onDown} onPointerUpCapture={onUp}>
       <div ref={hostRef} className="absolute inset-0" />
+      {gameError && <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+        <p className="text-lg text-destructive">The world could not load.</p>
+        <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+      </div>}
       <Joystick />
       {buttonsHidden ? (
-        <button onClick={() => setButtonsHidden(false)} aria-label="Show buttons" className="pixel-panel absolute z-10 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground"
-          style={{ top: "max(8px, env(safe-area-inset-top))", left: "max(8px, env(safe-area-inset-left))" }}><Eye className="h-4 w-4" />Show buttons</button>
+        <Button variant="ghost" onClick={() => setButtonsHidden(false)} aria-label="Show buttons" className="pixel-panel absolute z-10 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground"
+          style={{ top: "max(8px, env(safe-area-inset-top))", left: "max(8px, env(safe-area-inset-left))" }}><Eye className="h-4 w-4" />Show buttons</Button>
       ) : landscape ? (
         <div className="pointer-events-none absolute z-10 grid grid-cols-2 gap-2"
           style={{ top: "max(8px, env(safe-area-inset-top))", left: "max(12px, env(safe-area-inset-left))" }}>{menuButtons}</div>
@@ -226,7 +261,8 @@ function PlayPage() {
           onBag={() => { setProfileOpen(false); setMenu("bag"); }} onToggleButtons={() => setButtonsHidden((h) => !h)} onExit={signOut}
           onSecret={() => { if (d.isAdmin) { setProfileOpen(false); setAdminOpen(true); } }} />
       )}
-      {adminOpen && <AdminPanel fx={d.admin[profile.id]} onClose={() => setAdminOpen(false)} />}
+      {adminOpen && d.isAdmin && <AdminPanel fx={d.admin[profile.id]} onClose={() => setAdminOpen(false)} onWorldEdit={() => { setAdminOpen(false); setEditorOpen(true); }} />}
+      {editorOpen && d.isAdmin && <MapEditor ctrl={getController} tapRef={editorTapRef} onClose={() => { setEditorOpen(false); editorTapRef.current = null; }} />}
       {menu && <GameMenu d={d} userId={profile.id} initial={menu} onClose={() => setMenu(null)} />}
       {wardrobe && (
         <Wardrobe look={look} username={profile.username} saving={saving} onClose={() => setWardrobe(false)} onSave={saveLook} />

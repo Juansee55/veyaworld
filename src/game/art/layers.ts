@@ -41,7 +41,7 @@ export function loadLayerArt() {
   loading ??= (async () => {
     await loadUploadedArt();
     for (const [key, canvas] of buildCharacterSheets()) registry.set(key, { image: canvas, fw: 16, fh: 24, frames: 1, ms: 1000, oy: 0, melee: false });
-    await Promise.all(EXTRA.map(async (e) => {
+    await Promise.allSettled(EXTRA.map(async (e) => {
       const img = await image(e.url);
       registry.set(e.key, { image: img, fw: e.fw, fh: e.fh, frames: framesOf(img.height, e.fh, e.melee), ms: e.ms, oy: e.oy, melee: e.melee });
     }));

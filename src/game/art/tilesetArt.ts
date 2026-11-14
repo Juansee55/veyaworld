@@ -235,8 +235,12 @@ export async function loadTilesetAtlas() {
   if (atlas) return;
   const img = new Image();
   img.src = atlasAsset.url;
-  await img.decode();
-  atlas = img;
+  try {
+    await img.decode();
+    atlas = img;
+  } catch {
+    // Procedural terrain keeps the world playable if the atlas is temporarily unavailable.
+  }
 }
 
 export function buildTilesetCanvas(): HTMLCanvasElement {

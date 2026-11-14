@@ -14,7 +14,7 @@ const sheets = new Map<string, HTMLCanvasElement>();
 let loading: Promise<void> | undefined;
 
 export function loadUploadedArt() {
-  loading ??= Promise.all(sources.map(async (asset, i) => {
+  loading ??= Promise.allSettled(sources.map(async (asset, i) => {
     const image = new Image();
     image.src = asset.url;
     await image.decode();
