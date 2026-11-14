@@ -34,6 +34,7 @@ use the editor.
 - Multiplayer: one realtime channel per map; Presence for who is online and their look, Broadcast `move` for positions. Why: keeps high-frequency traffic out of the database.
 - Character art is generated in code with one shared frame grid for BODY, HEAD and HAT, drawn in that order. Why: any part can be swapped on its own.
 - Fit hats to each head frame's visible pixels with the shared attachment transform used by Phaser and previews. Why: imported heads have different dimensions and breathing offsets.
+- Normalize uploaded Graal hats with their own direction/animation cells and trim each hat cell before fitting. Why: head templates crop different coordinates and transparent margins must not determine hat size.
 
 ## Gang system
 - Clients only SELECT gang/base/combat/chat tables; every write goes through SECURITY DEFINER SQL functions that validate the caller. Why: gameplay must be server-authoritative.

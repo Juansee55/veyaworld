@@ -80,7 +80,7 @@ function Uploader({ onDone }: { onDone: (art: PlayerArt) => void }) {
   useEffect(() => {
     setResult(null); setError("");
     if (!file) return;
-    const real: ArtLayout = kind === "melee" || layout === "single" ? "single" : layout === "grid" ? "grid" : kind === "body" ? "graal-body" : "graal-head";
+    const real: ArtLayout = kind === "melee" || layout === "single" ? "single" : layout === "grid" ? "grid" : kind === "body" ? "graal-body" : kind === "hat" ? "graal-hat" : "graal-head";
     let live = true;
     void import("@/game/art/normalizeUpload").then((m) => m.normalizeUpload(file, kind, real))
       .then((r) => { if (live) setResult(r); }, (e: Error) => { if (live) setError(e.message); });

@@ -1,5 +1,5 @@
 export type ArtKind = "body" | "head" | "hat" | "melee";
-export type ArtLayout = "single" | "grid" | "graal-body" | "graal-head";
+export type ArtLayout = "single" | "grid" | "graal-body" | "graal-head" | "graal-hat";
 
 /** Shared 16×24 character coordinates, independent of source resolution. */
 export function artPlacement(kind: ArtKind, width: number, height: number) {
@@ -11,6 +11,13 @@ export function artPlacement(kind: ArtKind, width: number, height: number) {
 
 export function sourceCell(layout: ArtLayout, row: number, col: number, width: number, height: number) {
   if (layout === "grid") return { x: col * width / 4, y: row * height / 4, w: width / 4, h: height / 4 };
+  if (layout === "graal-hat") {
+    // Graal hats use down/left/up/right rows, with idle and two walking cells.
+    // Accept both the three-column template and four-column sheets.
+    const columns = width < height ? 3 : 4;
+    const w = width / columns, h = height / 4;
+    return { x: (columns === 3 ? [0, 0, 1, 2][col] ?? 0 : col) * w, y: ([0, 2, 1, 3][row] ?? 0) * h, w, h };
+  }
   const direction = [2, 0, 1, 3][row] ?? 2;
   if (layout === "graal-body") return { x: direction * 32, y: col === 2 ? 32 : col === 3 ? 128 : 0, w: 32, h: 32 };
   if (layout === "graal-head") return { x: 0, y: direction * 32, w: 32, h: 32 };

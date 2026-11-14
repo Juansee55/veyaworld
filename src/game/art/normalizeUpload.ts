@@ -53,7 +53,7 @@ function normalized(source: HTMLCanvasElement | HTMLImageElement, kind: ArtKind,
       if ((pixels[(y * crop.width + x) * 4 + 3] ?? 0) > 20) { left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y); }
     }
     if (right < left) continue;
-    if (layout === "grid") ctx.drawImage(crop, col * 16, row * 24, 16, 24);
+    if (layout === "grid" && kind !== "hat") ctx.drawImage(crop, col * 16, row * 24, 16, 24);
     else {
       const w = right - left + 1, h = bottom - top + 1, p = artPlacement(kind, w, h);
       ctx.drawImage(crop, left, top, w, h, col * 16 + p.x, row * 24 + p.y, p.w, p.h);
@@ -94,8 +94,9 @@ export async function normalizeUpload(file: File, kind: ArtKind, layout: ArtLayo
       sources.push(normalized(image, kind, layout));
     } finally { URL.revokeObjectURL(url); }
   }
-  if (!sources.length) throw new Error("Empty image");
-  const fw = sources[0]!.width, fh = sources[0]!.height;
+  const first = sources[0];
+  if (!first) throw new Error("Empty image");
+  const fw = first.width, fh = first.height;
   const { canvas, ctx } = makeCanvas(fw, sources.length * fh);
   sources.forEach((source, i) => ctx.drawImage(source, 0, i * fh));
   const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => b ? resolve(b) : reject(new Error("Image could not be prepared")), "image/png"));
