@@ -33,6 +33,7 @@ use the editor.
 - All Phaser code lives in `src/game/` and is loaded only via dynamic import from `/play`; only pure-data modules (`catalog.ts`, `maps/`, `bases/defs.ts`, `combat/lineOfSight.ts`) are SSR-safe and may be imported statically or by server code. Why: Phaser touches `window` at import time.
 - Multiplayer: one realtime channel per map; Presence for who is online and their look, Broadcast `move` for positions. Why: keeps high-frequency traffic out of the database.
 - Character art is generated in code with one shared frame grid for BODY, HEAD and HAT, drawn in that order. Why: any part can be swapped on its own.
+- Fit hats to each head frame's visible pixels with the shared attachment transform used by Phaser and previews. Why: imported heads have different dimensions and breathing offsets.
 
 ## Gang system
 - Clients only SELECT gang/base/combat/chat tables; every write goes through SECURITY DEFINER SQL functions that validate the caller. Why: gameplay must be server-authoritative.

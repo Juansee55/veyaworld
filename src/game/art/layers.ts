@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_LOOK, DIRECTIONS, isCustomPart, type Direction, type Look } from "../catalog";
 import { buildCharacterSheets } from "./characterArt";
 import { loadUploadedArt } from "./uploadedArt";
+import { fitHat, type PixelBounds } from "./hatFit";
 
 export type Layer = "body" | "head" | "hat" | "melee";
 /**
@@ -21,7 +22,7 @@ const pending = new Map<string, Promise<LayerSheet | null>>();
 export const MELEE_CELL = 32;
 
 const EXTRA = [
-  { key: "hat:hat_shadow_helm", url: hatHelm.url, fw: 24, fh: 24, ms: 150, oy: -5, melee: false },
+  { key: "hat:hat_shadow_helm", url: hatHelm.url, fw: 24, fh: 24, ms: 150, oy: 0, melee: false },
   { key: "melee:melee_violet_knife", url: knife.url, fw: 42, fh: 42, ms: 200, oy: 0, melee: true },
   { key: "melee:melee_jade_kunai", url: kunai.url, fw: 29, fh: 29, ms: 200, oy: 0, melee: true },
   { key: "melee:melee_moon_staff", url: staff.url, fw: 32, fh: 32, ms: 200, oy: 0, melee: true },
@@ -43,7 +44,20 @@ export function loadLayerArt() {
     for (const [key, canvas] of buildCharacterSheets()) registry.set(key, { image: canvas, fw: 16, fh: 24, frames: 1, ms: 1000, oy: 0, melee: false });
     await Promise.allSettled(EXTRA.map(async (e) => {
       const img = await image(e.url);
-      registry.set(e.key, { image: img, fw: e.fw, fh: e.fh, frames: framesOf(img.height, e.fh, e.melee), ms: e.ms, oy: e.oy, melee: e.melee });
+      let source: HTMLCanvasElement | HTMLImageElement = img;
+      if (!e.melee) {
+        // The original helmet rows are down, left, up, right; the game uses down, up, left, right.
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width; canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          for (let a = 0; a < framesOf(img.height, e.fh, false); a++) {
+            [0, 2, 1, 3].forEach((row, target) => ctx.drawImage(img, 0, (a * 4 + row) * e.fh, img.width, e.fh, 0, (a * 4 + target) * e.fh, img.width, e.fh));
+          }
+          source = canvas;
+        }
+      }
+      registry.set(e.key, { image: source, fw: e.fw, fh: e.fh, frames: framesOf(img.height, e.fh, e.melee), ms: e.ms, oy: e.oy, melee: e.melee });
     }));
   })();
   return loading;
@@ -99,6 +113,37 @@ export const animFrame = (s: LayerSheet | undefined, clock: number) => (s && s.f
 /** Melee sheets: column 0 points up, then clockwise in 45° steps. */
 export const MELEE_FACING: Record<Direction, number> = { up: 0, right: 2, down: 4, left: 6 };
 
+const boundsCache = new WeakMap<LayerSheet, Map<number, PixelBounds | null>>();
+function visibleBounds(sheet: LayerSheet, frame: number) {
+  let cache = boundsCache.get(sheet);
+  if (!cache) { cache = new Map(); boundsCache.set(sheet, cache); }
+  if (cache.has(frame)) return cache.get(frame);
+  const canvas = document.createElement("canvas");
+  canvas.width = sheet.fw; canvas.height = sheet.fh;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(sheet.image, (frame % 4) * sheet.fw, Math.floor(frame / 4) * sheet.fh, sheet.fw, sheet.fh, 0, 0, sheet.fw, sheet.fh);
+  const pixels = ctx.getImageData(0, 0, sheet.fw, sheet.fh).data;
+  let left = sheet.fw, top = sheet.fh, right = -1, bottom = -1;
+  for (let y = 0; y < sheet.fh; y++) for (let x = 0; x < sheet.fw; x++) {
+    if ((pixels[(y * sheet.fw + x) * 4 + 3] ?? 0) <= 20) continue;
+    left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
+  }
+  const bounds = right < left ? null : { x: left, y: top, w: right - left + 1, h: bottom - top + 1 };
+  cache.set(frame, bounds);
+  return bounds;
+}
+
+/** Shared by Phaser and every canvas preview, including existing player uploads. */
+export function hatTransform(head: LayerSheet | undefined, hat: LayerSheet | undefined, id: string, frame: number, clock: number) {
+  if (!head || !hat) return { x: 0, y: hat?.oy ?? 0, scale: 1 };
+  const h = visibleBounds(head, animFrame(head, clock) * 16 + frame);
+  const b = visibleBounds(hat, animFrame(hat, clock) * 16 + frame);
+  if (!h || !b) return { x: 0, y: hat.oy, scale: 1 };
+  const fit = fitHat(h, b, id === "hat_shadow_helm" ? "helmet" : isCustomPart(id) ? "custom" : "procedural");
+  return { scale: fit.scale, x: -head.fw / 2 + fit.x + hat.fw * fit.scale / 2, y: head.oy - head.fh + fit.y + hat.fh * fit.scale };
+}
+
 /** Wardrobe preview: BODY -> HEAD -> HAT on a 40x40 logical canvas, with the melee held at the side. */
 export function drawPreview(ctx: CanvasRenderingContext2D, look: Look, dir: Direction, col: number, scale: number, clock: number) {
   ctx.imageSmoothingEnabled = false;
@@ -110,7 +155,8 @@ export function drawPreview(ctx: CanvasRenderingContext2D, look: Look, dir: Dire
     const s = registry.get(resolveKey(layer, id));
     if (!s) continue;
     const a = animFrame(s, clock);
-    ctx.drawImage(s.image, col * s.fw, (a * 4 + row) * s.fh, s.fw, s.fh, (20 - s.fw / 2) * scale, (38 + s.oy - s.fh) * scale, s.fw * scale, s.fh * scale);
+    const fit = layer === "hat" ? hatTransform(registry.get(resolveKey("head", look.head_id)), s, id, row * 4 + col, clock) : { x: 0, y: s.oy, scale: 1 };
+    ctx.drawImage(s.image, col * s.fw, (a * 4 + row) * s.fh, s.fw, s.fh, (20 + fit.x - s.fw * fit.scale / 2) * scale, (38 + fit.y - s.fh * fit.scale) * scale, s.fw * fit.scale * scale, s.fh * fit.scale * scale);
   }
   const m = registry.get(resolveKey("melee", look.melee_id));
   if (m && look.melee_id !== "melee_none") {

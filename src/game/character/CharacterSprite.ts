@@ -3,7 +3,7 @@ import {
   frameIndex, IDLE_SEQUENCE, WALK_SEQUENCE, sanitizeLook,
   type AnimState, type Direction, type Look,
 } from "../catalog";
-import { animFrame, ensureLayerTexture, MELEE_FACING, resolveKey, sheetFor, type Layer } from "../art/layers";
+import { animFrame, ensureLayerTexture, hatTransform, MELEE_FACING, resolveKey, sheetFor, type Layer } from "../art/layers";
 
 const PARTS = ["body", "head", "hat"] as const;
 type Part = (typeof PARTS)[number];
@@ -167,13 +167,15 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
 
   private applyFrame() {
     const col = this.anim === "walk"
-      ? WALK_SEQUENCE[Math.floor(this.t / 130) % WALK_SEQUENCE.length]!
-      : IDLE_SEQUENCE[Math.floor(this.t / 650) % IDLE_SEQUENCE.length]!;
+      ? WALK_SEQUENCE[Math.floor(this.t / 130) % WALK_SEQUENCE.length] ?? 0
+      : IDLE_SEQUENCE[Math.floor(this.t / 650) % IDLE_SEQUENCE.length] ?? 0;
     const f = frameIndex(this.dir, col);
     for (const layer of PARTS) {
       const key = this.keys[layer];
       if (key) this.parts[layer].setFrame(animFrame(sheetFor(key), this.clock) * 16 + f);
     }
+    const fit = hatTransform(sheetFor(this.keys.head), sheetFor(this.keys.hat), this.look.hat_id, f, this.clock);
+    this.parts.hat.setScale(fit.scale).setPosition(fit.x, fit.y);
     const since = this.clock - this.swingAt;
     const key = this.keys.melee;
     if (!key || since > SWING_MS) { this.melee.setVisible(false); return; }
