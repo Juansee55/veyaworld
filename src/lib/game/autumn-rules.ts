@@ -1,4 +1,5 @@
 export const AUTUMN_DROP_CHANCE = 0.27;
+export function hasVisibleFirearm(id: string) { return id !== "fists" && id !== ""; }
 export const AUTUMN_HAT_NAMES = ["Bellota", "Hoja dorada", "Hoja roja", "Calabaza", "Zorro", "Búho", "Erizo", "Ardilla", "Seta roja", "Seta dorada", "Corona de hojas", "Espantapájaros", "Boina del bosque", "Sombrero de cosecha", "Rama encantada", "Castaña", "Arce", "Viento otoñal"];
 export const AUTUMN_HAT_IDS = AUTUMN_HAT_NAMES.map((_, i) => `hat_autumn_${i + 1}`);
 export const AUTUMN_GUNS = [{ id: "gun_acorn", name: "Bellotera" }, { id: "gun_maple", name: "Arce" }] as const;

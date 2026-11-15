@@ -172,6 +172,7 @@ function PlayPage() {
         attack: (targetId) => attackFn({ data: { targetId } }),
         shoot: async (aim) => { const result = await shootFn({ data: { aim } }); qc.setQueryData(["g", "firearm", profile.id], (old: typeof d.firearm) => old ? { ...old, rounds: result.rounds } : old); return result; },
         firearms: firearmsRef.current,
+        onAutumnChange: () => { void qc.invalidateQueries({ queryKey: ["g"] }); },
         admin: adminRef.current.a,
         isAdmin: adminRef.current.on,
       });

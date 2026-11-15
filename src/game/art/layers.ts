@@ -9,6 +9,7 @@ import { DEFAULT_LOOK, DIRECTIONS, isCustomPart, type Direction, type Look } fro
 import { buildCharacterSheets } from "./characterArt";
 import { loadUploadedArt } from "./uploadedArt";
 import { fitHat, type PixelBounds } from "./hatFit";
+import { autumnHatSheets } from "./autumnArt";
 
 export type Layer = "body" | "head" | "hat" | "melee";
 /**
@@ -42,6 +43,7 @@ export function loadLayerArt() {
   loading ??= (async () => {
     await loadUploadedArt();
     for (const [key, canvas] of buildCharacterSheets()) registry.set(key, { image: canvas, fw: 16, fh: 24, frames: 1, ms: 1000, oy: 0, melee: false });
+    for (const { id, canvas } of autumnHatSheets()) registry.set(`hat:${id}`, { image: canvas, fw: 16, fh: 24, frames: 1, ms: 1000, oy: 0, melee: false });
     await Promise.allSettled(EXTRA.map(async (e) => {
       const img = await image(e.url);
       let source: HTMLCanvasElement | HTMLImageElement = img;
@@ -140,7 +142,7 @@ export function hatTransform(head: LayerSheet | undefined, hat: LayerSheet | und
   const h = visibleBounds(head, animFrame(head, clock) * 16 + frame);
   const b = visibleBounds(hat, animFrame(hat, clock) * 16 + frame);
   if (!h || !b) return { x: 0, y: hat.oy, scale: 1 };
-  const fit = fitHat(h, b, id === "hat_shadow_helm" ? "helmet" : isCustomPart(id) ? "custom" : "procedural");
+  const fit = fitHat(h, b, id === "hat_shadow_helm" ? "helmet" : isCustomPart(id) || id.startsWith("hat_autumn_") ? "custom" : "procedural");
   return { scale: fit.scale, x: -head.fw / 2 + fit.x + hat.fw * fit.scale / 2, y: head.oy - head.fh + fit.y + hat.fh * fit.scale };
 }
 

@@ -6,6 +6,7 @@ import {
 import { animFrame, ensureLayerTexture, hatTransform, MELEE_FACING, resolveKey, sheetFor, type Layer } from "../art/layers";
 import { firearmArt } from "../art/firearmArt";
 import { firearmPose } from "@/lib/game/play-rules";
+import { hasVisibleFirearm } from "@/lib/game/autumn-rules";
 
 const PARTS = ["body", "head", "hat"] as const;
 type Part = (typeof PARTS)[number];
@@ -72,6 +73,7 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
     if (id === this.gunId) return;
     this.gunId = id;
     this.firearm.setVisible(false);
+    if (!hasVisibleFirearm(id)) return;
     void firearmArt(id).then((canvas) => {
       if (!canvas || !this.scene || this.gunId !== id) return;
       const key = `firearm:${id}`;

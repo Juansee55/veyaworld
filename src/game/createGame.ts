@@ -21,6 +21,7 @@ export interface GameOptions {
   attack: (targetId: string) => Promise<AttackResult>;
   shoot: (aim: Aim) => Promise<ShotResult>;
   firearms: Record<string, string>;
+  onAutumnChange: () => void;
   admin: Record<string, AdminFx>;
   isAdmin: boolean;
 }
@@ -77,6 +78,7 @@ export async function createGame(parent: HTMLElement, opts: GameOptions): Promis
     gang: opts.gang, zones: {}, myHp: opts.myHp, attack: opts.attack,
     admin: opts.admin, isAdmin: opts.isAdmin,
     shoot: opts.shoot, firearms: opts.firearms,
+    onAutumnChange: opts.onAutumnChange,
   };
   game.registry.set("ctx", ctx);
   const start: WorldSceneData = { mapId: opts.mapId, x: opts.x, y: opts.y, dir: opts.dir };

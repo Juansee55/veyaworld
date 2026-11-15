@@ -10,6 +10,8 @@ const q = async <T,>(p: PromiseLike<{ data: T | null; error: { message: string }
 
 export function useGameData(userId: string) {
   const qc = useQueryClient();
+  const autumnInventory = useQuery({ queryKey: ["g", "autumnInventory", userId], refetchInterval: 2000, queryFn: () => q(supabase.from("autumn_inventory").select("*").eq("user_id", userId)) });
+  const autumnRewards = useQuery({ queryKey: ["g", "autumnRewards", userId], queryFn: () => q(supabase.from("autumn_rewards").select("*").eq("user_id", userId)) });
   const firearm = useQuery({ queryKey: ["g", "firearm", userId], refetchInterval: 2000, queryFn: async () => (await supabase.from("player_firearms").select("*").eq("user_id", userId).maybeSingle()).data });
   const allFirearms = useQuery({ queryKey: ["g", "allFirearms"], refetchInterval: 2000, queryFn: () => q(supabase.from("player_firearms").select("user_id,gun_id")) });
   const wallet = useQuery({ queryKey: ["g", "wallet", userId], refetchInterval: 2000, queryFn: async () => (await supabase.from("player_wallets").select("*").eq("user_id", userId).maybeSingle()).data });
@@ -70,6 +72,7 @@ export function useGameData(userId: string) {
   const gangById = useMemo(() => Object.fromEntries((gangs.data ?? []).map((g) => [g.id, g])), [gangs.data]);
 
   return {
+    autumnBags: autumnInventory.data?.[0]?.bags ?? 0, autumnRewards: autumnRewards.data ?? [],
     firearm: firearm.data ?? null, allFirearms: allFirearms.data ?? [], wallet: wallet.data ?? null, customGuns: customGuns.data ?? [],
     gangs: gangs.data ?? [], gangById, members: members.data ?? [], alliances: alliances.data ?? [], invites: invites.data ?? [],
     bases: bases.data ?? [], weapons: weapons.data ?? [], items: items.data ?? [], myWeapons: myWeapons.data ?? [], myItems: myItems.data ?? [],

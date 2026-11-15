@@ -2,8 +2,10 @@ import crystal from "@/assets/weapons/crystal.png.asset.json";
 import pulse from "@/assets/weapons/pulse.png.asset.json";
 import carbine from "@/assets/weapons/carbine.png.asset.json";
 import { loadCustom } from "./layers";
+import acorn from "@/assets/weapons/acorn.svg";
+import maple from "@/assets/weapons/maple.svg";
 
-const sources = { gun_crystal: crystal.url, gun_pulse: pulse.url, gun_carbine: carbine.url };
+const sources = { gun_crystal: crystal.url, gun_pulse: pulse.url, gun_carbine: carbine.url, gun_acorn: acorn, gun_maple: maple };
 const images = new Map<string, HTMLCanvasElement>();
 const pending = new Map<string, Promise<HTMLCanvasElement | null>>();
 export function firearmArt(id: string) {
@@ -21,7 +23,7 @@ export function firearmArt(id: string) {
         const url = sources[id as keyof typeof sources]; if (!url) return null;
         const img = new Image(); img.src = url; await img.decode();
         const k = Math.min(24 / img.width, 14 / img.height);
-        ctx.save(); ctx.translate(24, 0); ctx.scale(-1, 1);
+        ctx.save(); if (!id.startsWith("gun_acorn") && id !== "gun_maple") { ctx.translate(24, 0); ctx.scale(-1, 1); }
         ctx.drawImage(img, 0, (16 - img.height * k) / 2, img.width * k, img.height * k); ctx.restore();
       }
       images.set(id, canvas); return canvas;

@@ -19,6 +19,8 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Aim } from "@/lib/game/firearm-rules";
 import type { ShotResult } from "@/lib/game/firearms.functions";
 import { cameraZoom } from "@/lib/game/play-rules";
+import { autumnTreeCanvas } from "../art/autumnArt";
+import { notify } from "@/lib/game/notify";
 
 export interface HudState { mapName?: string; mapId?: string; online?: number; status?: "connecting" | "online" | "offline" }
 
@@ -42,6 +44,7 @@ export interface GameContext {
   attack: (targetId: string) => Promise<AttackResult>;
   shoot: (aim: Aim) => Promise<ShotResult>;
   firearms: Record<string, string>;
+  onAutumnChange: () => void;
 }
 
 export interface WorldSnapshot { mapId: string; x: number; y: number; players: { id: string; x: number; y: number; gangId: string | null }[] }
@@ -86,6 +89,7 @@ export class WorldScene extends Phaser.Scene {
   private reloadTimer?: Phaser.Time.TimerEvent;
   private editGfx: Phaser.GameObjects.Graphics | undefined;
   private zoomFactor = 1;
+  private autumnTrees: { id: string; x: number; y: number; image: Phaser.GameObjects.Image }[] = [];
 
   constructor() { super("world"); }
 
@@ -118,6 +122,8 @@ export class WorldScene extends Phaser.Scene {
     this.extraObjs = []; this.npcs = [];
     void this.reloadExtras();
     this.subscribeEdits();
+    this.autumnTrees = [];
+    void this.loadAutumnTrees();
 
     const worldW = this.map.width * TILE, worldH = this.map.height * TILE;
     this.physics.world.setBounds(0, 0, worldW, worldH);
@@ -426,12 +432,37 @@ export class WorldScene extends Phaser.Scene {
     this.scene.restart({ mapId, x, y, dir: "down" } satisfies WorldSceneData);
   }
 
-  /** Finds the closest player in front of us and asks the server to resolve the hit. */
+  private async loadAutumnTrees() {
+    const { data } = await supabase.from("autumn_trees").select("*").eq("map_id", this.map.id);
+    if (!this.scene.isActive()) return;
+    if (!this.textures.exists("autumn-tree")) this.textures.addCanvas("autumn-tree", autumnTreeCanvas());
+    for (const t of data ?? []) {
+      const image = this.add.image(t.x, t.y, "autumn-tree").setOrigin(0.5, 1).setDepth(9 + t.y);
+      this.autumnTrees.push({ ...t, image });
+    }
+  }
+
+  /** Bare hands grab and push the closest autumn tree in front of the player. */
   async attack(): Promise<string | null> {
     if (!this.me || this.attacking) return null;
     this.attacking = true;
     try {
       await this.reportNow();
+      if (this.ctx.firearms[this.ctx.userId] === "fists") {
+        this.me.swing(); this.net.sendSwing({ id: this.ctx.userId, dir: this.dir });
+        const v = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[this.dir];
+        const tree = this.autumnTrees.filter((t) => {
+          const dx = t.x - this.me.x, dy = t.y - this.me.y;
+          return Math.hypot(dx, dy) <= 40 && dx * (v[0] ?? 0) + dy * (v[1] ?? 0) >= 0 && Math.abs(dx * (v[1] ?? 0) - dy * (v[0] ?? 0)) <= 24;
+        }).sort((a, b) => Math.hypot(a.x - this.me.x, a.y - this.me.y) - Math.hypot(b.x - this.me.x, b.y - this.me.y))[0];
+        if (!tree) return "No hay nada que agarrar cerca";
+        const { data, error } = await supabase.rpc("push_autumn_tree", { _tree: tree.id, _aim: this.dir });
+        if (error) return error.message;
+        this.tweens.add({ targets: tree.image, angle: 5, duration: 80, yoyo: true, repeat: 2 });
+        const result = data as { dropped: boolean };
+        notify(result.dropped ? "¡Conseguiste una bolsa de bellotas!" : "Cayeron hojas, pero no una bolsa");
+        this.ctx.onAutumnChange(); return null;
+      }
       const res = await this.ctx.shoot(this.dir);
       this.me.shoot();
       this.net.sendSwing({ id: this.ctx.userId, dir: this.dir, firearm: true });
@@ -595,6 +626,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.editCh) { void supabase.removeChannel(this.editCh); this.editCh = undefined; }
     for (const n of this.npcs) n.s.destroy();
     this.npcs = []; this.extraObjs = []; this.editGfx = undefined;
+    for (const t of this.autumnTrees) t.image.destroy(); this.autumnTrees = [];
     for (const r of this.remotes.values()) r.destroy();
     this.remotes.clear();
   }

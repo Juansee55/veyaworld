@@ -5,6 +5,8 @@ import { FIREARM_COOLDOWN_MS } from "@/lib/game/firearm-rules";
 import crystal from "@/assets/weapons/crystal.png.asset.json";
 import pulse from "@/assets/weapons/pulse.png.asset.json";
 import carbine from "@/assets/weapons/carbine.png.asset.json";
+import acorn from "@/assets/weapons/acorn.svg";
+import maple from "@/assets/weapons/maple.svg";
 import { rpc } from "@/lib/game/api";
 import { notify } from "@/lib/game/notify";
 import type { GameData } from "@/lib/game/useGameData";
@@ -64,7 +66,7 @@ function HpCard({ s }: { s: Combat }) {
       <div className="flex justify-between gap-2"><span>HP</span><span>{s.c.hp}/{s.c.max_hp}</span></div>
       <HpBar hp={s.c.hp} max={s.c.max_hp} />
       <div className="mt-1 text-primary">{s.gralats} Gralats</div>
-      <div className="text-accent">{s.rounds}/12 balas</div>
+      {s.c && <div className="text-accent">{s.rounds}/12 balas</div>}
       {s.prot > 0 && <div className="mt-0.5 text-accent">Protected {Math.ceil(s.prot / 1000)}s</div>}
     </div>
   );
@@ -80,11 +82,11 @@ function BaseCard({ s }: { s: Combat }) {
     </div>
   );
 }
-function AttackButton({ s, big }: { s: Combat; big?: boolean }) {
+function AttackButton({ s, big, fist }: { s: Combat; big?: boolean; fist: boolean }) {
   return (
-    <Button variant="ghost" onClick={() => void s.attack()} aria-label="Disparar" title="Disparar" disabled={s.cool}
+    <Button variant="ghost" onClick={() => void s.attack()} aria-label={fist ? "Agarrar / empujar" : "Disparar"} title={fist ? "Agarrar / empujar" : "Disparar"} disabled={s.cool}
       className={`game-control pointer-events-auto flex items-center justify-center rounded-full ${big ? "h-24 w-24" : "h-20 w-20"} ${s.cool ? "opacity-50" : "text-primary"}`}>
-      <Crosshair className="!h-10 !w-10" />
+      {fist ? <span className="text-4xl">✊</span> : <Crosshair className="!h-10 !w-10" />}
     </Button>
   );
 }
@@ -97,16 +99,17 @@ export function CombatHud({ d, mapId, onAttack, onReload, landscape, hidden, onB
   const qc = useQueryClient();
   const { slots } = useQuickSlots(d.firearm?.user_id ?? "");
   const activate = async (value: string) => {
-    if (value.startsWith("gun:")) { const { error } = await supabase.rpc("equip_firearm", { _gun: value.slice(4) }); if (error) notify(error.message, "error"); }
+    if (value === "fist" || value.startsWith("gun:")) { const { error } = await supabase.rpc("equip_firearm", { _gun: value === "fist" ? "fists" : value.slice(4) }); if (error) notify(error.message, "error"); }
     else if (value.startsWith("item:")) { const id = value.slice(5), item = d.items.find((i) => i.id === id); if (item?.category === "equipment") await rpc("set_equipment", { _item: id, _on: true }); else await rpc("use_item", { _item: id }); }
     else onBag();
     await qc.invalidateQueries({ queryKey: ["g"] });
   };
-  const pictures: Record<string, string> = { gun_crystal: crystal.url, gun_pulse: pulse.url, gun_carbine: carbine.url };
+  const pictures: Record<string, string> = { gun_crystal: crystal.url, gun_pulse: pulse.url, gun_carbine: carbine.url, gun_acorn: acorn, gun_maple: maple };
+  const fist = d.firearm?.gun_id === "fists";
   if (hidden) return null;
   const quick = (
     <>
-      {slots.map((value, index) => <Button key={index} variant="ghost" size="icon" aria-label={`Usar preset ${index + 1}`} title={`Preset ${index + 1}`} onClick={() => void activate(value)} onContextMenu={(e) => { e.preventDefault(); onBag(); }} className="game-control pointer-events-auto relative h-14 w-14 p-1">{value.startsWith("gun:") ? (pictures[value.slice(4)] ? <img src={pictures[value.slice(4)]} alt="" className="h-8 w-11 object-contain [image-rendering:pixelated]" /> : <Crosshair className="!h-7 !w-7" />) : value ? <Cross className="!h-7 !w-7 text-accent" /> : <Backpack className="!h-7 !w-7" />}<span className="absolute bottom-0 right-1 text-xs text-foreground">{index + 1}</span></Button>)}
+      {slots.map((value, index) => <Button key={index} variant="ghost" size="icon" aria-label={`Usar preset ${index + 1}`} title={index === 2 ? "Puño · agarrar / empujar" : `Preset ${index + 1}`} onClick={() => void activate(value)} onContextMenu={(e) => { e.preventDefault(); if (index < 2) onBag(); }} className={`game-control pointer-events-auto relative h-14 w-14 p-1 ${value === "fist" && fist || value === `gun:${d.firearm?.gun_id}` ? "ring-2 ring-primary" : ""}`}>{value === "fist" ? <span className="text-3xl">✊</span> : value.startsWith("gun:") ? (pictures[value.slice(4)] ? <img src={pictures[value.slice(4)]} alt="" className="h-8 w-11 object-contain [image-rendering:pixelated]" /> : <Crosshair className="!h-7 !w-7" />) : value ? <Cross className="!h-7 !w-7 text-accent" /> : <Backpack className="!h-7 !w-7" />}<span className="absolute bottom-0 right-1 text-xs text-foreground">{index + 1}</span></Button>)}
       <IconButton icon={<Repeat />} label="Recargar" onClick={() => { void s.reload().then(onReload); }} />
     </>
   );
@@ -122,7 +125,7 @@ export function CombatHud({ d, mapId, onAttack, onReload, landscape, hidden, onB
         style={{ top: "max(8px, env(safe-area-inset-top))", right: "max(12px, env(safe-area-inset-right))" }}>{quick}</div>
       <div className="pointer-events-none absolute z-10 flex items-end gap-3"
         style={{ bottom: "max(16px, env(safe-area-inset-bottom))", right: "max(20px, env(safe-area-inset-right))" }}>
-        {claim}<AttackButton s={s} big />
+        {claim}<AttackButton s={s} big fist={fist} />
       </div>
     </>
   );
@@ -136,7 +139,7 @@ export function CombatHud({ d, mapId, onAttack, onReload, landscape, hidden, onB
         {claim}
         <div className="flex flex-col gap-2">{quick}</div>
       </div>
-      <div className="pointer-events-none absolute bottom-6 right-5 z-10"><AttackButton s={s} /></div>
+      <div className="pointer-events-none absolute bottom-6 right-5 z-10"><AttackButton s={s} fist={fist} /></div>
     </>
   );
 }

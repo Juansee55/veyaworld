@@ -9,6 +9,9 @@ import type { GameData } from "@/lib/game/useGameData";
 import crystal from "@/assets/weapons/crystal.png.asset.json";
 import pulse from "@/assets/weapons/pulse.png.asset.json";
 import carbine from "@/assets/weapons/carbine.png.asset.json";
+import { AUTUMN_GUNS } from "@/lib/game/autumn-rules";
+import acorn from "@/assets/weapons/acorn.svg";
+import maple from "@/assets/weapons/maple.svg";
 const pictures = [crystal.url, pulse.url, carbine.url];
 
 export function FirearmPanel({ d }: { d: GameData }) {
@@ -34,6 +37,8 @@ export function FirearmPanel({ d }: { d: GameData }) {
     <div className="mb-3 flex justify-between"><h3 className="text-primary">Armas de fuego</h3><span>{d.wallet?.gralats ?? 0} Gralats</span></div>
     <div className="grid grid-cols-3 gap-2">{GUNS.map((g, i) => <Button key={g.id} variant={d.firearm?.gun_id === g.id ? "default" : "secondary"} className="h-20 min-w-0 flex-col gap-2" onClick={() => void equip(g.id)}><img src={pictures[i]} alt="" className="h-5 w-16 object-contain [image-rendering:pixelated]" />{g.name}</Button>)}</div>
     <div className="my-2 text-xs text-muted-foreground">Daño 1 · 12 balas</div>
+    <Button variant="secondary" disabled={d.firearm?.gun_id === "fists"} onClick={() => void equip("fists")}>Quitarse el arma</Button>
+    <div className="mt-2 grid grid-cols-2 gap-2">{AUTUMN_GUNS.filter((g) => d.autumnRewards.some((r) => r.reward_id === g.id)).map((g, i) => <Button key={g.id} variant={d.firearm?.gun_id === g.id ? "default" : "secondary"} className="h-20 flex-col" onClick={() => void equip(g.id)}><img src={g.id === "gun_acorn" ? acorn : maple} alt="" className="h-8 w-12 [image-rendering:pixelated]" />{g.name}</Button>)}</div>
     {d.customGuns.map((g) => <Button key={g.id} variant={d.firearm?.gun_id === `custom:${g.id}` ? "default" : "secondary"} className="m-1 max-w-full truncate" onClick={() => void equip(`custom:${g.id}`)}>{g.name}</Button>)}
     <label className="mt-3 block text-sm">Subir arma personalizada<input aria-label="Subir arma personalizada" type="file" accept="image/png,image/gif" disabled={busy} className="mt-1 block w-full min-w-0 text-xs" onChange={(e) => void upload(e.target.files?.[0])} /></label>
     {busy && <div className="text-xs">Subiendo…</div>}

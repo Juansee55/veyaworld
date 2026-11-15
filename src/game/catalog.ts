@@ -1,4 +1,5 @@
 // Pure data + helpers shared by the game engine and React UI (SSR-safe: no browser APIs).
+import { AUTUMN_HAT_IDS, AUTUMN_HAT_NAMES } from "@/lib/game/autumn-rules";
 
 export type Direction = "down" | "up" | "left" | "right";
 export type AnimState = "idle" | "walk";
@@ -61,6 +62,7 @@ export const HATS: HatPart[] = [
   { id: "hat_bandana", label: "Bandana", kind: "bandana", color: "#2f9e6e" },
   { id: "hat_straw", label: "Straw hat", kind: "straw", color: "#e2c16b" },
   { id: "hat_shadow_helm", label: "Shadow helm", kind: "none", color: "#000000" },
+  ...AUTUMN_HAT_IDS.map((id, i): HatPart => ({ id, label: AUTUMN_HAT_NAMES[i] ?? id, kind: "none", color: "#d98b32" })),
 ];
 
 /** Melee skins are shown while swinging; combat stats come from the equipped weapon. */

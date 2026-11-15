@@ -4,6 +4,7 @@ import type { ArtKind, ArtLayout } from "@/game/art/layout";
 import { deletePlayerArt, listMyArt, savePlayerArt, type PlayerArt } from "@/lib/game/playerArt";
 import { Button } from "@/components/ui/button";
 import { notify } from "@/lib/game/notify";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   look: Look;
@@ -149,9 +150,11 @@ export function Wardrobe({ look, username, saving, onClose, onSave }: Props) {
   const [draft, setDraft] = useState<Look>(look);
   const [name, setName] = useState(username);
   const [mine, setMine] = useState<PlayerArt[]>([]);
+  const [rewardIds, setRewardIds] = useState<string[]>([]);
   const clean = sanitizeUsername(name);
   const refresh = () => { void listMyArt().then(setMine, () => undefined); };
   useEffect(refresh, []);
+  useEffect(() => { void supabase.from("autumn_rewards").select("reward_id").then(({ data }) => setRewardIds((data ?? []).map((r) => r.reward_id))); }, []);
   const custom = (kind: ArtKind) => mine.filter((a) => a.kind === kind).map((a) => ({ id: `custom:${a.id}`, label: `★ ${a.name}` }));
   const remove = async (art: PlayerArt) => {
     try { await deletePlayerArt(art); }
@@ -174,7 +177,7 @@ export function Wardrobe({ look, username, saving, onClose, onSave }: Props) {
             <input value={name} maxLength={16} onChange={(e) => setName(e.target.value)}
               className="w-full border-2 border-border bg-input px-2 py-1.5 text-base text-foreground outline-none focus:border-primary" />
           </label>
-          <Row title="Hat" items={[...HATS, ...custom("hat")]} value={draft.hat_id} onPick={(id) => setDraft({ ...draft, hat_id: id })} />
+          <Row title="Hat" items={[...HATS.filter((h) => !h.id.startsWith("hat_autumn_") || rewardIds.includes(h.id)), ...custom("hat")]} value={draft.hat_id} onPick={(id) => setDraft({ ...draft, hat_id: id })} />
           <Row title="Head" items={[...HEADS, ...custom("head")]} value={draft.head_id} onPick={(id) => setDraft({ ...draft, head_id: id })} />
           <Row title="Body" items={[...BODIES, ...custom("body")]} value={draft.body_id} onPick={(id) => setDraft({ ...draft, body_id: id })} />
           <Row title="Melee" items={[...MELEES, ...custom("melee")]} value={draft.melee_id} onPick={(id) => setDraft({ ...draft, melee_id: id })} />

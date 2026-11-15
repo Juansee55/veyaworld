@@ -1,6 +1,7 @@
 # Veya World roadmap
 
 ## Acorn event and fixed fist shortcut
+- [ ] Allow players to unequip firearms without deleting ownership or ammunition
 - [ ] Add a third, immutable fist preset while preserving the first two assignments
 - [ ] Add autumn trees, server-validated pushing and 27% bag drops
 - [ ] Open bags atomically for 18 autumn hats or two functional firearms; enforce ownership
