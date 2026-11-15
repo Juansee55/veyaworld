@@ -56,6 +56,8 @@ use the editor.
 - Create imported auth identities only through the supported admin API with explicit original IDs and no password, confirmation or role metadata; write application batches through the service-role-only atomic SQL importer. Why: preserve ownership without copying credentials or modifying managed auth tables.
 
 ## World editor media
+- Reuse decoded current-map images and preload equipped custom layers before starting Phaser; build textures only for referenced tiles. Why: avoids late scenery pop-in and unnecessary atlas work.
+- Art uploads share one browser-only crop/animation editor and the gameplay layer registry for previews. Why: hats and GIF weapons must preview exactly the sheets that will be saved.
 - Store original world images in private player-art storage with admin-only world_assets metadata; pad partial tiles during scene loading and keep optional-art fallbacks. Why: accept arbitrary dimensions without modifying source images or blocking gameplay.
 - Save placed-object dimensions independently from furniture templates; admin player drags use a validated server function and an admin-checking SQL RPC. Why: resizing one instance must not resize all copies, and movement permissions cannot depend on UI state.
 

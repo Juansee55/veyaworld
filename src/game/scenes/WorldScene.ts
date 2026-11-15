@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
-import { worldArtUrl } from "@/lib/game/world-art";
+import { referencedAssets, worldImage } from "../editor/worldArtCache";
+import { tileCrop } from "@/lib/game/art-crop";
 import { propSize } from "@/lib/game/editor-rules";
 import { supabase } from "@/integrations/supabase/client";
 import { facingFromVector, normalizeInput, type AnimState, type Direction, type Look } from "../catalog";
@@ -13,7 +14,7 @@ import { SOLID_TILES, TILE } from "../maps/tiles";
 import { isSolidAt, LAYERS, type MapDef, type Warp } from "../maps/types";
 import { WorldChannel, type PresenceMeta } from "../net/WorldChannel";
 import { BASES, captureZone } from "../bases/defs";
-import { loadMapExtras, registerCustomMap, type MapExtras, type TileRow, type WorldMapRow } from "../editor/worldData";
+import { loadMapExtras, takeInitialExtras, registerCustomMap, type MapExtras, type TileRow, type WorldMapRow } from "../editor/worldData";
 import { DEFAULT_LOOK, sanitizeLook } from "../catalog";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Aim } from "@/lib/game/firearm-rules";
@@ -290,6 +291,11 @@ export class WorldScene extends Phaser.Scene {
     const p = this.extras.props.find((p) => p.id === id); if (!p) return;
     p.x = x; p.y = y; this.rebuildObjects();
   }
+  resizeProp(id: string, w: number, h: number) {
+    if (!this.ctx.isAdmin || !Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
+    const p = this.extras.props.find((p) => p.id === id); if (!p) return;
+    p.display_w = w; p.display_h = h; this.rebuildObjects();
+  }
   pan(dx: number, dy: number) {
     if (!this.editGfx) return;
     const cam = this.cameras.main; cam.stopFollow();
@@ -331,25 +337,26 @@ export class WorldScene extends Phaser.Scene {
 
   async reloadExtras() {
     const mapId = this.map.id;
-    const ex = await loadMapExtras(mapId);
+    const ex = takeInitialExtras(mapId) ?? await loadMapExtras(mapId);
     if (!this.sys.isActive() || this.map.id !== mapId) return;
-    await Promise.all(ex.assets.map(async (a) => {
+    await Promise.all(referencedAssets(ex).map(async (a) => {
       const key = `world-art-${a.id}`;
       if (this.textures.exists(key)) return;
       try {
-        const image = new Image(); image.crossOrigin = "anonymous";
-        const url = await worldArtUrl(a.path);
-        await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("Image unavailable")); image.src = url; });
+        const image = await worldImage(a); if (!image) return;
         if (!this.sys.isActive()) return;
         if (a.kind === "tileset") {
           const cols = Math.ceil(a.width / TILE), rows = Math.ceil(a.height / TILE);
           // Individual textures avoid GPU atlas-size limits and pad partial edge tiles.
-          for (let i = 0; i < cols * rows; i++) {
+          const needed = new Set(ex.tiles.filter((t) => t.asset_id === a.id).map((t) => t.tile));
+          for (const i of needed) {
+            if (i < 0 || i >= cols * rows) continue;
             const tileKey = `${key}-${i}`;
             if (this.textures.exists(tileKey)) continue;
             const canvas = document.createElement("canvas"); canvas.width = TILE; canvas.height = TILE;
             const ctx = canvas.getContext("2d"); if (!ctx) continue;
-            ctx.drawImage(image, (i % cols) * TILE, Math.floor(i / cols) * TILE, TILE, TILE, 0, 0, TILE, TILE);
+            const crop = tileCrop(i, a.width, a.height);
+            if (crop.w && crop.h) ctx.drawImage(image, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
             this.textures.addCanvas(tileKey, canvas);
           }
         } else this.textures.addImage(key, image);

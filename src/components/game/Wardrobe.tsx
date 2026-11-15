@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { BODIES, DEFAULT_LOOK, DIRECTIONS, HATS, HEADS, MELEES, sanitizeUsername, type Direction, type Look } from "@/game/catalog";
-import type { ArtKind, ArtLayout } from "@/game/art/layout";
-import { deletePlayerArt, listMyArt, savePlayerArt, type PlayerArt } from "@/lib/game/playerArt";
+import type { ArtKind } from "@/game/art/layout";
+import { deletePlayerArt, listMyArt, type PlayerArt } from "@/lib/game/playerArt";
 import { Button } from "@/components/ui/button";
 import { notify } from "@/lib/game/notify";
+import { ArtUploadEditor } from "./ArtUploadEditor";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
@@ -64,88 +65,6 @@ function Row({ title, items, value, onPick }: { title: string; items: { id: stri
   );
 }
 
-const KINDS: { kind: ArtKind; label: string }[] = [
-  { kind: "body", label: "Body" }, { kind: "head", label: "Head" }, { kind: "hat", label: "Hat" }, { kind: "melee", label: "Melee" },
-];
-
-/** Upload a PNG/GIF, cut it to the shared character grid, preview it, then save it privately. */
-function Uploader({ onDone }: { onDone: (art: PlayerArt) => void }) {
-  const [kind, setKind] = useState<ArtKind>("body");
-  const [layout, setLayout] = useState<"graal" | "single" | "grid">("graal");
-  const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<{ canvas: HTMLCanvasElement; blob: Blob; frames: number; frameMs: number } | null>(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const ref = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    setResult(null); setError("");
-    if (!file) return;
-    const real: ArtLayout = kind === "melee" || layout === "single" ? "single" : layout === "grid" ? "grid" : kind === "body" ? "graal-body" : kind === "hat" ? "graal-hat" : "graal-head";
-    let live = true;
-    void import("@/game/art/normalizeUpload").then((m) => m.normalizeUpload(file, kind, real))
-      .then((r) => { if (live) setResult(r); }, (e: Error) => { if (live) setError(e.message); });
-    return () => { live = false; };
-  }, [file, kind, layout]);
-
-  useEffect(() => {
-    if (!result) return;
-    const fh = result.canvas.height / result.frames, fw = result.canvas.width;
-    let i = 0;
-    const draw = () => {
-      const ctx = ref.current?.getContext("2d");
-      if (!ctx) return;
-      ctx.imageSmoothingEnabled = false;
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      const k = Math.min(ctx.canvas.width / fw, ctx.canvas.height / fh);
-      ctx.drawImage(result.canvas, 0, (i++ % result.frames) * fh, fw, fh, 0, 0, fw * k, fh * k);
-    };
-    draw();
-    const id = setInterval(draw, result.frameMs);
-    return () => clearInterval(id);
-  }, [result]);
-
-  const save = async () => {
-    if (!file || !result) return;
-    setBusy(true); setError("");
-    try { onDone(await savePlayerArt(file, result.blob, kind, result.frames, result.frameMs)); setFile(null); }
-    catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); }
-    finally { setBusy(false); }
-  };
-
-  return (
-    <div className="flex flex-col gap-2 border-2 border-border p-2">
-      <div className="text-xs uppercase tracking-widest text-muted-foreground">Upload your own</div>
-      <div className="flex flex-wrap gap-1.5">
-        {KINDS.map((k) => (
-          <Button key={k.kind} onClick={() => setKind(k.kind)}
-            className={`px-2 py-1 text-xs ${k.kind === kind ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{k.label}</Button>
-        ))}
-      </div>
-      {kind !== "melee" ? (
-        <div className="flex flex-wrap gap-1.5">
-          {([["graal", "Graal sheet"], ["single", "Single image"], ["grid", "4×4 grid"]] as const).map(([v, l]) => (
-            <Button key={v} onClick={() => setLayout(v)}
-              className={`px-2 py-1 text-xs ${v === layout ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"}`}>{l}</Button>
-          ))}
-        </div>
-      ) : <p className="text-xs text-muted-foreground">Use one weapon image pointing up; it is rotated for every direction.</p>}
-      <input type="file" accept="image/png,image/gif" onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        className="w-full min-w-0 text-sm text-foreground file:mr-2 file:border-2 file:border-border file:bg-secondary file:px-2 file:py-1 file:text-secondary-foreground" />
-      {result && (
-        <div className="flex flex-wrap items-center gap-3">
-          <canvas ref={ref} width={kind === "melee" ? 256 : 128} height={kind === "melee" ? 32 : 192} className="max-w-full bg-muted [image-rendering:pixelated]" />
-          <span className="text-xs text-muted-foreground">{result.frames > 1 ? `${result.frames} frames` : "Still image"}</span>
-        </div>
-      )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button disabled={!result || busy} onClick={save} className="border-2 border-primary bg-primary py-1.5 text-primary-foreground disabled:opacity-50">
-        {busy ? "Uploading…" : "Upload"}
-      </Button>
-    </div>
-  );
-}
-
 export function Wardrobe({ look, username, saving, onClose, onSave }: Props) {
   const [draft, setDraft] = useState<Look>(look);
   const [name, setName] = useState(username);
@@ -181,7 +100,7 @@ export function Wardrobe({ look, username, saving, onClose, onSave }: Props) {
           <Row title="Head" items={[...HEADS, ...custom("head")]} value={draft.head_id} onPick={(id) => setDraft({ ...draft, head_id: id })} />
           <Row title="Body" items={[...BODIES, ...custom("body")]} value={draft.body_id} onPick={(id) => setDraft({ ...draft, body_id: id })} />
           <Row title="Melee" items={[...MELEES, ...custom("melee")]} value={draft.melee_id} onPick={(id) => setDraft({ ...draft, melee_id: id })} />
-          <Uploader onDone={(art) => { refresh(); setDraft((d) => ({ ...d, [`${art.kind}_id`]: `custom:${art.id}` })); }} />
+          <ArtUploadEditor look={draft} onDone={(art) => { refresh(); setDraft((d) => ({ ...d, [`${art.kind}_id`]: `custom:${art.id}` })); }} />
           {mine.length > 0 && (
             <div>
               <div className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">My uploads</div>

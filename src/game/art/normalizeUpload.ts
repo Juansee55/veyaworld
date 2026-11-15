@@ -1,6 +1,9 @@
 import { parseGIF, decompressFrames } from "gifuct-js";
 import { artPlacement, sourceCell, type ArtKind, type ArtLayout } from "./layout";
 import { makeCanvas } from "./pixel";
+import { boundedCrop, type ArtCrop } from "@/lib/game/art-crop";
+
+export interface NormalizeOptions { crop?: ArtCrop; scale?: number; offsetX?: number; offsetY?: number; hatColumns?: 3 | 4 }
 
 export const MAX_FRAMES = 40;
 const CELL = 32;
@@ -18,11 +21,11 @@ function trim(source: HTMLCanvasElement | HTMLImageElement) {
 }
 
 /** Melee: one weapon image pointing up, rotated into 8 orientations of 32x32 (clockwise from up). */
-function normalizedMelee(source: HTMLCanvasElement | HTMLImageElement) {
+function normalizedMelee(source: HTMLCanvasElement | HTMLImageElement, scale = 1) {
   const { canvas, ctx } = makeCanvas(CELL * 8, CELL);
   const box = trim(source);
   if (!box) return canvas;
-  const k = Math.min(2, 22 / Math.max(box.w, box.h));
+  const k = Math.min(2, 22 / Math.max(box.w, box.h)) * Math.max(0.25, Math.min(1.4, scale));
   const w = Math.max(1, Math.round(box.w * k)), h = Math.max(1, Math.round(box.h * k));
   for (let i = 0; i < 8; i++) {
     ctx.save();
@@ -34,11 +37,17 @@ function normalizedMelee(source: HTMLCanvasElement | HTMLImageElement) {
   return canvas;
 }
 
-function normalized(source: HTMLCanvasElement | HTMLImageElement, kind: ArtKind, layout: ArtLayout) {
-  if (kind === "melee") return normalizedMelee(source);
+function normalized(source: HTMLCanvasElement | HTMLImageElement, kind: ArtKind, layout: ArtLayout, options: NormalizeOptions) {
+  if (options.crop) {
+    const c = boundedCrop(options.crop, source.width, source.height);
+    const cut = makeCanvas(c.w, c.h);
+    cut.ctx.drawImage(source, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h);
+    source = cut.canvas;
+  }
+  if (kind === "melee") return normalizedMelee(source, options.scale);
   const { canvas, ctx } = makeCanvas(64, 96);
   for (let row = 0; row < 4; row++) for (let col = 0; col < 4; col++) {
-    const s = sourceCell(layout, row, col, source.width, source.height);
+    const s = sourceCell(layout, row, col, source.width, source.height, options.hatColumns);
     if (layout === "graal-body" || layout === "graal-head") {
       // Same fixed half scale as the built-in Graal uploads, so custom parts match the current character size.
       const dy = layout === "graal-body" ? 8 : col === 1 ? 1 : 0;
@@ -56,13 +65,17 @@ function normalized(source: HTMLCanvasElement | HTMLImageElement, kind: ArtKind,
     if (layout === "grid" && kind !== "hat") ctx.drawImage(crop, col * 16, row * 24, 16, 24);
     else {
       const w = right - left + 1, h = bottom - top + 1, p = artPlacement(kind, w, h);
-      ctx.drawImage(crop, left, top, w, h, col * 16 + p.x, row * 24 + p.y, p.w, p.h);
+      const scale = Math.max(0.25, Math.min(1.4, options.scale ?? 1));
+      const dw = Math.min(16, p.w * scale), dh = Math.min(24, p.h * scale);
+      ctx.save(); ctx.beginPath(); ctx.rect(col * 16, row * 24, 16, 24); ctx.clip();
+      ctx.drawImage(crop, left, top, w, h, col * 16 + (16 - dw) / 2 + (options.offsetX ?? 0), row * 24 + p.y + p.h - dh + (options.offsetY ?? 0), dw, dh);
+      ctx.restore();
     }
   }
   return canvas;
 }
 
-export async function normalizeUpload(file: File, kind: ArtKind, layout: ArtLayout) {
+export async function normalizeUpload(file: File, kind: ArtKind, layout: ArtLayout, options: NormalizeOptions = {}) {
   if (!["image/png", "image/gif"].includes(file.type)) throw new Error("Choose a PNG or GIF");
   if (file.size > 5 * 1024 * 1024) throw new Error("Maximum file size: 5 MB");
   const sources: HTMLCanvasElement[] = [];
@@ -83,7 +96,7 @@ export async function normalizeUpload(file: File, kind: ArtKind, layout: ArtLayo
       const { canvas: patch, ctx: pc } = makeCanvas(f.dims.width, f.dims.height);
       pc.putImageData(new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height), 0, 0);
       ctx.drawImage(patch, f.dims.left, f.dims.top);
-      if (i % step === 0) sources.push(normalized(canvas, kind, layout));
+      if (i % step === 0) sources.push(normalized(canvas, kind, layout, options));
       previous = f;
     }
   } else {
@@ -91,7 +104,7 @@ export async function normalizeUpload(file: File, kind: ArtKind, layout: ArtLayo
     try {
       const image = new Image(); image.src = url; await image.decode();
       if (image.width * image.height > 2048 * 2048) throw new Error("Image is too large");
-      sources.push(normalized(image, kind, layout));
+      sources.push(normalized(image, kind, layout, options));
     } finally { URL.revokeObjectURL(url); }
   }
   const first = sources[0];

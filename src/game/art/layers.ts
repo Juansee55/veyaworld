@@ -67,6 +67,11 @@ export function loadLayerArt() {
 
 export const layerKeys = () => [...registry.keys()];
 export const sheetFor = (key: string) => registry.get(key);
+/** Temporary editor sheets use the same attachment and animation as gameplay. */
+export function registerPreviewSheet(layer: Layer, id: string, canvas: HTMLCanvasElement, frames: number, ms: number) {
+  registry.set(`${layer}:${id}`, { image: canvas, fw: layer === "melee" ? 32 : 16, fh: layer === "melee" ? 32 : 24, frames, ms, oy: 0, melee: layer === "melee" });
+  return () => { registry.delete(`${layer}:${id}`); };
+}
 
 /** Fetch a player-uploaded part (private storage, readable by signed-in players). */
 export function loadCustom(layer: Layer, id: string): Promise<LayerSheet | null> {

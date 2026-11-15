@@ -1,5 +1,12 @@
 # Veya World roadmap
 
+## Art editors and initial map loading
+- [ ] Precise tileset edge crops and multi-tile painting preview
+- [ ] Hat crop controls with live character preview
+- [ ] Custom firearms and animated GIF swords with live size controls
+- [ ] Preload current-map art and equipped layers before showing gameplay
+- [ ] Verify editors, animation and startup in signed-in gameplay
+
 ## Acorn event and fixed fist shortcut
 - [ ] Allow players to unequip firearms without deleting ownership or ammunition
 - [ ] Add a third, immutable fist preset while preserving the first two assignments

@@ -11,6 +11,9 @@ export type NpcRow = Tb["world_npcs"]["Row"];
 export type FurnitureRow = Tb["world_furniture"]["Row"];
 export type PropRow = Tb["world_props"]["Row"];
 export interface MapExtras { tiles: TileRow[]; warps: WarpRow[]; npcs: NpcRow[]; props: PropRow[]; furniture: FurnitureRow[]; assets: Tb["world_assets"]["Row"][] }
+const initialExtras = new Map<string, MapExtras>();
+export function primeMapExtras(mapId: string, extras: MapExtras) { initialExtras.set(mapId, extras); }
+export function takeInitialExtras(mapId: string) { const ex = initialExtras.get(mapId); initialExtras.delete(mapId); return ex; }
 
 /** Custom (editor-made) maps are registered into the normal map registry. */
 export function registerCustomMap(m: WorldMapRow) {

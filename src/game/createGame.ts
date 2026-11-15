@@ -1,9 +1,10 @@
 import * as Phaser from "phaser";
 import type { Direction, Look } from "./catalog";
 import { WorldScene, type AdminFx, type AttackResult, type GameContext, type GangInfo, type HudState, type WorldSceneData, type WorldSnapshot } from "./scenes/WorldScene";
-import { loadLayerArt } from "./art/layers";
+import { loadLayerArt, loadCustom } from "./art/layers";
 import { loadTilesetAtlas } from "./art/tilesetArt";
-import { loadCustomMaps, registerCustomMap, type WorldMapRow, type MapExtras } from "./editor/worldData";
+import { loadCustomMaps, loadMapExtras, primeMapExtras, registerCustomMap, type WorldMapRow, type MapExtras } from "./editor/worldData";
+import { referencedAssets, worldImage } from "./editor/worldArtCache";
 import type { Aim } from "@/lib/game/firearm-rules";
 import type { ShotResult } from "@/lib/game/firearms.functions";
 
@@ -47,6 +48,7 @@ export interface GameController {
   playerAt(clientX: number, clientY: number): string | null;
   previewPlayer(id: string, x: number, y: number): void;
   previewProp(id: string, x: number, y: number): void;
+  resizeProp(id: string, w: number, h: number): void;
   pan(dx: number, dy: number): void;
   zoomAt(clientX: number, clientY: number, factor: number): void;
   refreshEditor(): Promise<void>;
@@ -58,7 +60,16 @@ export interface GameController {
 }
 
 export async function createGame(parent: HTMLElement, opts: GameOptions): Promise<GameController> {
-  await Promise.all([loadLayerArt(), loadTilesetAtlas(), loadCustomMaps().catch(() => [])]);
+  await Promise.all([
+    loadLayerArt(), loadTilesetAtlas(), loadCustomMaps().catch(() => []),
+    Promise.all((["body", "head", "hat", "melee"] as const).map((layer) => {
+      const id = opts.look[`${layer}_id`]; return id.startsWith("custom:") ? loadCustom(layer, id) : Promise.resolve(null);
+    })),
+    ...Object.values(opts.firearms).filter((id) => id.startsWith("custom:")).map((id) => loadCustom("melee", id)),
+    loadMapExtras(opts.mapId).then(async (ex) => {
+      await Promise.all(referencedAssets(ex).map(worldImage)); primeMapExtras(opts.mapId, ex);
+    }),
+  ]);
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
@@ -114,6 +125,7 @@ export async function createGame(parent: HTMLElement, opts: GameOptions): Promis
     playerAt(cx, cy) { const s = scene(); if (!s?.sys.isActive()) return null; const r = parent.getBoundingClientRect(); return s.playerAt(cx - r.left, cy - r.top); },
     previewPlayer(id, x, y) { scene()?.previewPlayer(id, x, y); },
     previewProp(id, x, y) { scene()?.previewProp(id, x, y); },
+    resizeProp(id, w, h) { scene()?.resizeProp(id, w, h); },
     pan(dx, dy) { scene()?.pan(dx, dy); },
     zoomAt(cx, cy, factor) { const r = parent.getBoundingClientRect(); scene()?.zoomAt(cx - r.left, cy - r.top, factor); },
     async refreshEditor() { await scene()?.reloadExtras(); },

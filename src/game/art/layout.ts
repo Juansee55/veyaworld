@@ -9,12 +9,12 @@ export function artPlacement(kind: ArtKind, width: number, height: number) {
   return { x: Math.floor((16 - w) / 2), y: box.y + box.h - h, w, h };
 }
 
-export function sourceCell(layout: ArtLayout, row: number, col: number, width: number, height: number) {
+export function sourceCell(layout: ArtLayout, row: number, col: number, width: number, height: number, hatColumns?: 3 | 4) {
   if (layout === "grid") return { x: col * width / 4, y: row * height / 4, w: width / 4, h: height / 4 };
   if (layout === "graal-hat") {
     // Graal hats use down/left/up/right rows, with idle and two walking cells.
     // Accept both the three-column template and four-column sheets.
-    const columns = width < height ? 3 : 4;
+    const columns = hatColumns ?? (width < height ? 3 : 4);
     const w = width / columns, h = height / 4;
     return { x: (columns === 3 ? [0, 0, 1, 2][col] ?? 0 : col) * w, y: ([0, 2, 1, 3][row] ?? 0) * h, w, h };
   }

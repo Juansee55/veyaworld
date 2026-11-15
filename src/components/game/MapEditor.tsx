@@ -12,6 +12,7 @@ import houseImage from "@/assets/custom-haunted-house.png";
 import { propSize } from "@/lib/game/editor-rules";
 import { dragPlayer } from "@/lib/game/editor.functions";
 import { useServerFn } from "@tanstack/react-start";
+import { tileCrop } from "@/lib/game/art-crop";
 
 type Tool = "tile" | "prop" | "npc" | "warp" | "remove" | "maps" | "furniture" | "house" | "move" | "players" | "pan";
 type Layer = "ground" | "decor" | "objects" | "above";
@@ -23,7 +24,20 @@ interface WMap { id: string; name: string; width: number; height: number; spawn_
 const COLS = 8;
 const ok = (error: { message: string } | null, msg?: string) => { if (error) notify(error.message, "error"); else if (msg) notify(msg); return !error; };
 
-function TileSwatch({ url, id, size = 28, cols = COLS, custom = false }: { url: string | null; id: number; size?: number; cols?: number; custom?: boolean }) {
+function TileSwatch({ url, id, size = 28, cols = COLS, custom = false, width, height }: { url: string | null; id: number; size?: number; cols?: number; custom?: boolean; width?: number | undefined; height?: number | undefined }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!url || !custom || !width || !height) return;
+    let live = true; const image = new Image(); image.src = url;
+    void image.decode().then(() => {
+      const ctx = ref.current?.getContext("2d"); if (!live || !ctx) return;
+      ctx.clearRect(0, 0, 16, 16); ctx.imageSmoothingEnabled = false;
+      const c = tileCrop(id, width, height);
+      if (c.w && c.h) ctx.drawImage(image, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h);
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, [url, id, custom, width, height]);
+  if (custom) return <canvas ref={ref} width={16} height={16} style={{ width: size, height: size }} className="block bg-muted [image-rendering:pixelated]" />;
   if ((!custom && id <= 0) || !url) return <span className="block bg-background/60" style={{ width: size, height: size }} />;
   return <span className="block" style={{ width: size, height: size, imageRendering: "pixelated", backgroundImage: `url(${url})`,
     backgroundSize: `${cols * size}px auto`, backgroundPosition: `-${(id % cols) * size}px -${Math.floor(id / cols) * size}px` }} />;
@@ -34,6 +48,7 @@ export function MapEditor({ ctrl, tapRef, dragRef, onClose }: { ctrl: () => Game
   const [tool, setTool] = useState<Tool>("tile");
   const [layer, setLayer] = useState<Layer>("ground");
   const [tile, setTile] = useState(1);
+  const [stamp, setStamp] = useState({ w: 1, h: 1 });
   const [url, setUrl] = useState<string | null>(null);
   const [furniture, setFurniture] = useState<Fur[]>([]);
   const [furId, setFurId] = useState<string>("");
@@ -106,6 +121,9 @@ export function MapEditor({ ctrl, tapRef, dragRef, onClose }: { ctrl: () => Game
     return (ex?.props ?? []).flatMap((p) => { const f = ex?.furniture.find((f) => f.id === p.furniture_id); return f ? [{ ...p, ...propSize(p, f), name: f.name }] : []; });
   };
   const refresh = () => ctrl()?.refreshEditor();
+  const previewSize = (next: { w: number; h: number }) => {
+    setObjectSize(next); if (selectedProp) ctrl()?.resizeProp(selectedProp, next.w, next.h);
+  };
   const saveObjectSize = async () => {
     if (!selectedProp || !Number.isFinite(objectSize.w) || !Number.isFinite(objectSize.h) || objectSize.w <= 0 || objectSize.h <= 0) return;
     const p = placed().find((p) => p.id === selectedProp); const m = ctrl()?.myTile();
@@ -160,8 +178,17 @@ export function MapEditor({ ctrl, tapRef, dragRef, onClose }: { ctrl: () => Game
     const current = maps.find((m) => m.id === t.mapId);
     if (t.x < 0 || t.y < 0 || (current && (t.x >= current.width || t.y >= current.height))) return;
     if (tool === "tile") {
-      const { error } = await supabase.from("world_tiles").upsert({ map_id: t.mapId, layer, x: t.x, y: t.y, tile, asset_id: assetId || null, solid: !!assetId && blocked });
+      const rows = [];
+      const cols = selectedAsset ? Math.ceil(selectedAsset.width / 16) : COLS;
+      const count = selectedAsset ? cols * Math.ceil(selectedAsset.height / 16) : TILE_COUNT;
+      for (let y = 0; y < (tile === 0 && !assetId ? 1 : stamp.h); y++) for (let x = 0; x < (tile === 0 && !assetId ? 1 : stamp.w); x++) {
+        const index = tile + y * cols + x;
+        if (index >= count || tile % cols + x >= cols || (current && (t.x + x >= current.width || t.y + y >= current.height))) continue;
+        rows.push({ map_id: t.mapId, layer, x: t.x + x, y: t.y + y, tile: index, asset_id: assetId || null, solid: !!assetId && blocked });
+      }
+      const { error } = await supabase.from("world_tiles").upsert(rows);
       ok(error);
+      if (!error) await refresh();
     } else if (tool === "house") {
       if (busy) return;
       if (current && (t.x + house.w > current.width || t.y + house.h > current.height)) return notify("La casa no cabe aquí", "error");
@@ -243,7 +270,7 @@ export function MapEditor({ ctrl, tapRef, dragRef, onClose }: { ctrl: () => Game
     <>
     <div className="grid max-h-32 grid-cols-[repeat(auto-fill,minmax(30px,1fr))] gap-0.5 overflow-y-auto">
       {Array.from({ length: Math.min(128, Math.max(0, paletteCount - palettePage * 128)) }, (_, j) => { const i = palettePage * 128 + j; return (
-        <PxButton key={i} onClick={() => setTile(i)} aria-label={`Tile ${i}`} className={`border-2 ${tile === i ? "border-primary" : "border-transparent"} p-0`}><TileSwatch url={paletteUrl} id={i} cols={paletteCols} custom={!!selectedAsset} /></PxButton>
+        <PxButton key={i} onClick={() => setTile(i)} aria-label={`Tile ${i}`} className={`border-2 ${tile === i ? "border-primary" : "border-transparent"} p-0`}><TileSwatch url={paletteUrl} id={i} cols={paletteCols} custom={!!selectedAsset} width={selectedAsset?.width} height={selectedAsset?.height} /></PxButton>
       ); })}
     </div>
     {paletteCount > 128 && <div className="flex items-center gap-2"><PxButton disabled={palettePage === 0} onClick={() => setPalettePage((p) => p - 1)}>←</PxButton><span>{palettePage + 1} / {Math.ceil(paletteCount / 128)}</span><PxButton disabled={(palettePage + 1) * 128 >= paletteCount} onClick={() => setPalettePage((p) => p + 1)}>→</PxButton></div>}
@@ -274,6 +301,11 @@ export function MapEditor({ ctrl, tapRef, dragRef, onClose }: { ctrl: () => Game
           </div>
           <p className="mb-1 text-muted-foreground">Tap the map to paint. Walls/water block players; "above" draws over players.</p>
           {palette}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <label>Ancho selección<PxInput aria-label="Ancho selección de tiles" type="number" min={1} max={16} value={stamp.w} onChange={(e) => setStamp({ ...stamp, w: Math.max(1, Math.min(16, Number(e.target.value))) })} className="w-16" /></label>
+            <label>Alto selección<PxInput aria-label="Alto selección de tiles" type="number" min={1} max={16} value={stamp.h} onChange={(e) => setStamp({ ...stamp, h: Math.max(1, Math.min(16, Number(e.target.value))) })} className="w-16" /></label>
+            <div aria-label="Vista previa de selección" className="grid max-w-full overflow-auto" style={{ gridTemplateColumns: `repeat(${stamp.w}, 20px)` }}>{Array.from({ length: stamp.w * stamp.h }, (_, i) => <TileSwatch key={i} size={20} url={paletteUrl} id={tile + Math.floor(i / stamp.w) * paletteCols + i % stamp.w} cols={paletteCols} custom={!!selectedAsset} width={selectedAsset?.width} height={selectedAsset?.height} />)}</div>
+          </div>
         </>)}
         {tool === "prop" && (<>
           <p className="mb-1 text-muted-foreground">Choose an object, then tap the map (top-left corner).</p>
@@ -356,8 +388,8 @@ export function MapEditor({ ctrl, tapRef, dragRef, onClose }: { ctrl: () => Game
           <label>Alto<PxInput aria-label="Alto de casa" type="number" min={4} max={200} value={house.h} onChange={(e) => setHouse({ ...house, h: Math.max(4, Math.min(200, Math.round(+e.target.value))) })} className="w-16" /></label>
         </div>}
         {tool === "move" && <div className="flex flex-wrap items-center gap-2">
-          <label>Ancho<PxInput aria-label="Ancho del objeto" type="number" min={0.25} step={0.25} value={objectSize.w} onChange={(e) => setObjectSize({ ...objectSize, w: +e.target.value })} className="w-16" /></label>
-          <label>Alto<PxInput aria-label="Alto del objeto" type="number" min={0.25} step={0.25} value={objectSize.h} onChange={(e) => setObjectSize({ ...objectSize, h: +e.target.value })} className="w-16" /></label>
+          <label>Ancho<PxInput aria-label="Ancho del objeto" type="number" min={0.25} step={0.25} value={objectSize.w} onChange={(e) => previewSize({ ...objectSize, w: +e.target.value })} className="w-16" /></label>
+          <label>Alto<PxInput aria-label="Alto del objeto" type="number" min={0.25} step={0.25} value={objectSize.h} onChange={(e) => previewSize({ ...objectSize, h: +e.target.value })} className="w-16" /></label>
           <PxButton disabled={!selectedProp} onClick={() => void saveObjectSize()}>Guardar tamaño</PxButton>
           <select aria-label="Mapa destino del objeto" className={`${sel} max-w-full`} value={destination} onChange={(e) => setDestination(e.target.value)}>{allMaps.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
           <PxButton disabled={!selectedProp} onClick={() => void (async () => { const { error } = await supabase.from("world_props").update({ map_id: destination, x: 0, y: 0 }).eq("id", selectedProp); ok(error, "Objeto trasladado"); await refresh(); })()}>Trasladar</PxButton>
