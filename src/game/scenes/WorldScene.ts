@@ -22,8 +22,10 @@ import type { ShotResult } from "@/lib/game/firearms.functions";
 import { cameraZoom } from "@/lib/game/play-rules";
 import { autumnTreeCanvas } from "../art/autumnArt";
 import { notify } from "@/lib/game/notify";
+import { nearbySeat, seatsFor, waterAt, type Seat } from "../maps/plaza";
+import { christmasCanvas } from "../art/christmasArt";
 
-export interface HudState { mapName?: string; mapId?: string; online?: number; status?: "connecting" | "online" | "offline" }
+export interface HudState { mapName?: string; mapId?: string; online?: number; status?: "connecting" | "online" | "offline"; seatAction?: "sit" | "stand" | null }
 
 export interface GangInfo { gangId: string | null; tag: string | null; friendly: string[] }
 export interface AttackResult { damage: number; hp: number; max_hp: number; killed: boolean }
@@ -91,6 +93,9 @@ export class WorldScene extends Phaser.Scene {
   private editGfx: Phaser.GameObjects.Graphics | undefined;
   private zoomFactor = 1;
   private autumnTrees: { id: string; x: number; y: number; image: Phaser.GameObjects.Image }[] = [];
+  private seats: Seat[] = [];
+  private sitting: Seat | undefined;
+  private seatAction: "sit" | "stand" | null = null;
 
   constructor() { super("world"); }
 
@@ -99,6 +104,9 @@ export class WorldScene extends Phaser.Scene {
   create(data: WorldSceneData) {
     this.ensureTextures();
     this.map = getMap(data.mapId);
+    this.sitting = undefined;
+    this.seatAction = null;
+    this.seats = seatsFor(this.map);
     this.warping = false;
     this.remotes = new Map();
 
@@ -118,6 +126,7 @@ export class WorldScene extends Phaser.Scene {
     });
 
     this.tileLayers = layers;
+    this.drawChristmasPlaza();
     this.propBodies = this.physics.add.staticGroup();
     this.extras = { tiles: [], warps: [], npcs: [], props: [], furniture: [], assets: [] };
     this.extraObjs = []; this.npcs = [];
@@ -169,7 +178,7 @@ export class WorldScene extends Phaser.Scene {
     kb.disableGlobalCapture();
 
     // ---- network ----
-    this.ctx.onHud({ mapName: this.map.name, mapId: this.map.id, online: 1 });
+    this.ctx.onHud({ mapName: this.map.name, mapId: this.map.id, online: 1, seatAction: null });
     void supabase.rpc("report_state", { _map: this.map.id, _x: sx, _y: sy }).then(() => undefined);
     this.net = new WorldChannel(supabase, this.map.id, this.selfMeta(), {
       onStatus: (status) => this.ctx.onHud({ status }),
@@ -200,6 +209,35 @@ export class WorldScene extends Phaser.Scene {
     const cols = Math.floor(tex.source[0]!.width / TILE), rows = Math.floor(tex.source[0]!.height / TILE);
     for (let i = 0; i < cols * rows; i++) tex.add(`t${i}`, 0, (i % cols) * TILE, Math.floor(i / cols) * TILE, TILE, TILE);
     for (const key of layerKeys()) ensureLayerTexture(this, key);
+  }
+
+  private drawChristmasPlaza() {
+    if (this.map.id !== "village") return;
+    for (const kind of ["tree", "fountain", "market"] as const) {
+      if (!this.textures.exists(`christmas-${kind}`)) this.textures.addCanvas(`christmas-${kind}`, christmasCanvas(kind));
+    }
+    this.add.image(74 * TILE + 8, 38 * TILE + 8, "christmas-fountain").setDepth(3.5);
+    this.add.image(66 * TILE, 33 * TILE, "christmas-tree").setOrigin(0.5, 1).setDepth(10 + 33 * TILE);
+    this.add.image(84 * TILE, 25 * TILE - 12, "christmas-market").setOrigin(0).setDepth(10 + 28 * TILE);
+  }
+
+  private availableSeat() {
+    return nearbySeat(this.seats, this.me.x, this.me.y, [...this.remotes.values()].filter((r) => r.sitting).map((r) => r.sprite));
+  }
+
+  interact(): boolean {
+    if (!this.me || this.warping || this.editGfx) return false;
+    if (this.sitting) { this.sitting = undefined; this.me.setActivity("normal"); return true; }
+    const seat = this.availableSeat();
+    if (!seat) return false;
+    this.sitting = seat;
+    const body = this.feet.body as Phaser.Physics.Arcade.Body;
+    body.reset(seat.x, seat.y - 3);
+    this.dir = seat.dir;
+    this.me.setPosition(seat.x, seat.y).setPose(this.dir, "idle");
+    this.me.setActivity("sit");
+    this.lastSentState = "";
+    return true;
   }
 
   private selfMeta(): PresenceMeta {
@@ -365,6 +403,7 @@ export class WorldScene extends Phaser.Scene {
     if (!this.sys.isActive() || this.map.id !== mapId) return;
     this.extras = ex;
     for (const t of ex.tiles) this.applyTile(t);
+    this.seats = seatsFor(this.map);
     this.rebuildObjects();
   }
 
@@ -452,6 +491,7 @@ export class WorldScene extends Phaser.Scene {
   /** Bare hands grab and push the closest autumn tree in front of the player. */
   async attack(): Promise<string | null> {
     if (!this.me || this.attacking) return null;
+    if (this.sitting || this.ctx.firearms[this.ctx.userId] === "fists" && this.availableSeat()) { this.interact(); return null; }
     this.attacking = true;
     try {
       await this.reportNow();
@@ -567,25 +607,34 @@ export class WorldScene extends Phaser.Scene {
     if (k.S.isDown || k.DOWN.isDown) iy += 1;
     const v = normalizeInput(ix, iy);
     const body = this.feet.body as Phaser.Physics.Arcade.Body;
-    const sp = SPEED * (this.ctx.admin[this.ctx.userId]?.speed ?? 1);
+    const moving = v.x !== 0 || v.y !== 0;
+    if (moving) this.sitting = undefined;
+    const swimming = waterAt(this.map, this.feet.x, this.feet.y + 3);
+    const sp = SPEED * (swimming ? 0.65 : 1) * (this.ctx.admin[this.ctx.userId]?.speed ?? 1);
     body.setVelocity(v.x * sp, v.y * sp);
 
-    const moving = v.x !== 0 || v.y !== 0;
     this.dir = facingFromVector(v.x, v.y, this.dir);
     this.anim = moving ? "walk" : "idle";
     this.me.setPosition(Math.round(this.feet.x), Math.round(this.feet.y + 3));
     this.me.setPose(this.dir, this.anim);
+    this.me.setActivity(this.sitting ? "sit" : swimming ? "swim" : "normal");
     this.me.setFirearm(this.ctx.firearms[this.ctx.userId] ?? "gun_crystal");
     this.me.tick(delta);
 
-    for (const [id, r] of this.remotes) { r.sprite.setFirearm(this.ctx.firearms[id] ?? "gun_crystal"); r.update(performance.now(), delta); }
+    for (const [id, r] of this.remotes) {
+      r.sprite.setFirearm(this.ctx.firearms[id] ?? "gun_crystal");
+      r.sprite.setActivity(r.sitting ? "sit" : waterAt(this.map, r.sprite.x, r.sprite.y) ? "swim" : "normal");
+      r.update(performance.now(), delta);
+    }
+    const action = this.sitting ? "stand" : this.availableSeat() ? "sit" : null;
+    if (action !== this.seatAction) { this.seatAction = action; this.ctx.onHud({ seatAction: action }); }
 
     // network send
     const x = Math.round(this.me.x), y = Math.round(this.me.y);
-    const state = `${x},${y},${this.dir},${this.anim}`;
+    const state = `${x},${y},${this.dir},${this.anim},${!!this.sitting}`;
     const changed = state !== this.lastSentState;
     if ((changed && time - this.lastSent >= SEND_INTERVAL) || time - this.lastSent >= HEARTBEAT || (changed && this.anim === "idle")) {
-      this.net.sendMove({ id: this.ctx.userId, x, y, dir: this.dir, anim: this.anim });
+      this.net.sendMove({ id: this.ctx.userId, x, y, dir: this.dir, anim: this.anim, sitting: !!this.sitting });
       this.lastSent = time;
       this.lastSentState = state;
     }

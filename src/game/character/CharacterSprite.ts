@@ -26,6 +26,8 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
   private reloadUntil = 0;
   private keys: Record<Layer, string> = { body: "", head: "", hat: "", melee: "" };
   private shadow: Phaser.GameObjects.Ellipse;
+  private waterline: Phaser.GameObjects.Ellipse;
+  private activity: "normal" | "sit" | "swim" = "normal";
   private label: Phaser.GameObjects.Text;
   private hpBar: Phaser.GameObjects.Graphics;
   private hp = 1; private maxHp = 1; private protectedUntil = 0;
@@ -43,6 +45,7 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
     super(scene, x, y);
     this.look = sanitizeLook(look);
     this.shadow = scene.add.ellipse(0, -1, 10, 4, 0x000000, 0.28);
+    this.waterline = scene.add.ellipse(0, -2, 18, 5, 0xa8e2e8, 0.65).setVisible(false);
     const mk = () => scene.add.sprite(0, 0, "__DEFAULT").setOrigin(0.5, 1);
     this.parts = { body: mk(), head: mk(), hat: mk() };
     this.melee = scene.add.sprite(0, 0, "__DEFAULT").setVisible(false);
@@ -58,7 +61,7 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
       .setOrigin(0.5, 0)
       .setResolution(4);
     this.hpBar = scene.add.graphics();
-    this.add([this.shadow, this.parts.body, this.parts.head, this.parts.hat, this.melee, this.firearm, this.label, this.hpBar]);
+    this.add([this.shadow, this.parts.body, this.parts.head, this.parts.hat, this.waterline, this.melee, this.firearm, this.label, this.hpBar]);
     scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
     this.setLook(look);
   }
@@ -96,6 +99,12 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
   }
 
   reload() { this.reloadUntil = this.clock + 1200; }
+
+  setActivity(activity: "normal" | "sit" | "swim") {
+    this.activity = activity;
+    this.waterline.setVisible(activity === "swim");
+    this.shadow.setVisible(activity !== "swim");
+  }
 
   /** Point a layer at its texture; custom uploads load in the background, then rebind. */
   private bind(layer: Layer) {
@@ -215,6 +224,13 @@ export class CharacterSprite extends Phaser.GameObjects.Container {
     }
     const fit = hatTransform(sheetFor(this.keys.head), sheetFor(this.keys.hat), this.look.hat_id, f, this.clock);
     this.parts.hat.setScale(fit.scale).setPosition(fit.x, fit.y);
+    const lowered = this.activity === "swim" ? 6 + Math.round(Math.sin(this.clock / 190)) : this.activity === "sit" ? 4 : 0;
+    for (const part of ["body", "head"] as const) this.parts[part].setY((sheetFor(this.keys[part])?.oy ?? 0) + lowered);
+    this.parts.hat.setY(fit.y + lowered);
+    const bodySheet = sheetFor(this.keys.body);
+    if (this.activity !== "normal" && bodySheet) this.parts.body.setCrop(0, 0, bodySheet.fw, Math.max(1, bodySheet.fh - (this.activity === "swim" ? 10 : 5)));
+    else this.parts.body.setCrop();
+    this.waterline.setScale(1 + Math.sin(this.clock / 160) * 0.15, 1);
     const since = this.clock - this.swingAt;
     const key = this.keys.melee;
     if (!key || since > SWING_MS) { this.melee.setVisible(false); return; }

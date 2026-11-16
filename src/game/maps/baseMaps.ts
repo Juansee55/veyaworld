@@ -1,6 +1,7 @@
 import { BASES, FRONTIER, roomMapId, roomSpawnTile, type BaseSpec, type RoomSpec, type Side } from "../bases/defs";
 import { T } from "./tiles";
 import { MapBuilder, type MapDef, type Warp } from "./types";
+import { buildChristmasPlaza } from "./plaza";
 
 function doorway(room: RoomSpec, side: Side, pos: number, inside = false): [number, number] {
   const inset = inside ? 1 : 0;
@@ -136,5 +137,9 @@ export function buildCity(): MapDef {
   m.scatter("objects", T.BUSH, 0.01, T.GRASS);
   m.scatter("decor", T.FLOWERS, 0.015, T.GRASS);
   m.rect("objects", 59, 43, 4, 3, 0);
-  return m.build(FRONTIER, "Veya City", { x: 61, y: 44 }, warps);
+  buildChristmasPlaza(m);
+  for (let i = 0; i < m.layers.ground.length; i++) {
+    if ([T.GRASS, T.GRASS_DARK, T.GRASS_FLOWER].includes(m.layers.ground[i] as 1 | 2 | 7)) m.layers.ground[i] = T.SNOW;
+  }
+  return m.build(FRONTIER, "Veya City · Navidad", { x: 74, y: 45 }, warps);
 }

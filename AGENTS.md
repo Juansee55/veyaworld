@@ -30,6 +30,7 @@ use the editor.
 <!-- LOVABLE:END -->
 
 ## Game engine
+- Keep seasonal plaza geometry and chair/water detection in SSR-safe map data; broadcast sitting with movement and derive swimming from the same ground tiles on every client. Why: art, collision and remote poses must agree without granting gameplay privileges.
 - Keep gameplay zoom following the local player and preserve its relative scale on rotation; editor-only panning may detach the camera. Why: zoom must not strand the player off-screen.
 - Store the two quick-slot assignments per player in browser storage, but validate equipment and item use through existing gameplay RPCs. Why: shortcuts are preferences, not ownership or permission.
 - Append a fixed third fist slot; equip `fists` through the firearm RPC to hide the gun without removing ownership or rounds. Why: unequipping and grabbing must share authoritative equipment state.

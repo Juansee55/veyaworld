@@ -1,5 +1,11 @@
 # Veya World roadmap
 
+## Christmas plaza, seating and swimming
+- [ ] Recreate the reference plaza with a central fountain, picnic tables, chairs and a festive market
+- [ ] Dress the outdoor city for Christmas without changing base entrances or saved editor objects
+- [ ] Allow sitting, standing and swimming, visible to other players
+- [ ] Test map rules and verify signed-in gameplay in portrait and landscape
+
 ## Art editors and initial map loading
 - [ ] Precise tileset edge crops and multi-tile painting preview
 - [ ] Hat crop controls with live character preview

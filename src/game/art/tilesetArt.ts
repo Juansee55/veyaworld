@@ -1,6 +1,7 @@
 import atlasAsset from "@/assets/art/veya_tileset.png.asset.json";
 import { makeCanvas, OUTLINE, rng, shade } from "./pixel";
 import { T, TILESET_COLS, TILE, TILE_COUNT } from "../maps/tiles";
+import { WINTER } from "./christmasArt";
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -29,6 +30,24 @@ function blob(ctx: Ctx, cx: number, cy: number, r: number, c: string) {
 }
 
 const drawers: Partial<Record<number, (ctx: Ctx, x: number, y: number) => void>> = {
+  [T.SNOW]: (c, x, y) => { rect(c, x, y, 16, 16, WINTER.snow); noise(c, x, y, 76, [WINTER.ice, "#ffffff"], 0.12); },
+  [T.CHAIR_UP]: (c, x, y) => {
+    rect(c, x + 3, y + 5, 10, 7, WINTER.woodDark); rect(c, x + 4, y + 5, 8, 5, WINTER.wood);
+    rect(c, x + 3, y + 10, 10, 4, WINTER.woodDark); rect(c, x + 4, y + 10, 8, 2, WINTER.wood);
+    rect(c, x + 3, y + 13, 2, 3, WINTER.woodDark); rect(c, x + 11, y + 13, 2, 3, WINTER.woodDark);
+  },
+  [T.CHAIR_DOWN]: (c, x, y) => {
+    rect(c, x + 3, y + 2, 10, 9, WINTER.woodDark); rect(c, x + 4, y + 3, 8, 3, WINTER.wood);
+    rect(c, x + 4, y + 9, 8, 4, WINTER.wood); rect(c, x + 3, y + 13, 2, 3, WINTER.woodDark); rect(c, x + 11, y + 13, 2, 3, WINTER.woodDark);
+    rect(c, x + 3, y + 2, 10, 1, WINTER.snow);
+  },
+  [T.PICNIC]: (c, x, y) => {
+    rect(c, x, y, 16, 16, WINTER.woodDark); rect(c, x + 1, y + 1, 14, 14, WINTER.wood);
+    for (let j = 4; j < 16; j += 4) rect(c, x, y + j, 16, 1, WINTER.woodDark);
+    rect(c, x + 5, y, 6, 16, WINTER.red); rect(c, x + 6, y + 2, 1, 2, WINTER.gold); rect(c, x + 9, y + 11, 1, 2, WINTER.gold);
+  },
+  [T.PRESENT]: (c, x, y) => { rect(c, x + 2, y + 4, 12, 11, WINTER.red); rect(c, x + 7, y + 4, 2, 11, WINTER.gold); rect(c, x + 2, y + 7, 12, 2, WINTER.gold); rect(c, x + 5, y + 2, 6, 2, WINTER.gold); },
+  [T.SNOWMAN]: (c, x, y) => { blob(c, x + 8, y + 11, 5, WINTER.shadow); blob(c, x + 8, y + 10, 5, WINTER.snow); blob(c, x + 8, y + 4, 3, "#ffffff"); rect(c, x + 4, y, 8, 2, WINTER.pineDark); rect(c, x + 6, y - 1, 4, 2, WINTER.pineDark); rect(c, x + 5, y + 7, 6, 2, WINTER.red); rect(c, x + 7, y + 3, 1, 1, WINTER.woodDark); rect(c, x + 9, y + 4, 2, 1, WINTER.gold); },
   [T.GRASS]: (c, x, y) => { rect(c, x, y, 16, 16, C.grass); noise(c, x, y, 11, [C.grassD, C.grassL], 0.12); },
   [T.GRASS_DARK]: (c, x, y) => { rect(c, x, y, 16, 16, C.grassD); noise(c, x, y, 13, [C.grass, shade(C.grassD, -0.2)], 0.15); },
   [T.GRASS_FLOWER]: (c, x, y) => {
@@ -211,6 +230,8 @@ function drawTree(ctx: Ctx) {
   for (const [cx, cy, r] of [[16, 11, 11], [9, 15, 7], [23, 15, 7]] as const) blob(tc, cx, cy, r + 1, OUTLINE);
   for (const [cx, cy, r] of [[16, 11, 11], [9, 15, 7], [23, 15, 7]] as const) blob(tc, cx, cy, r, C.leaf);
   blob(tc, 13, 8, 4, C.leafL); blob(tc, 22, 17, 3, C.leafD); blob(tc, 9, 17, 3, C.leafD);
+  for (const [x, y, w] of [[10, 4, 12], [4, 12, 10], [20, 12, 9]] as const) { rect(tc, x, y, w, 2, WINTER.snow); rect(tc, x + 2, y + 2, w - 4, 1, WINTER.ice); }
+  for (const [x, y, col] of [[7, 16, WINTER.red], [16, 10, WINTER.gold], [25, 17, WINTER.red], [14, 20, WINTER.gold]] as const) rect(tc, x, y, 2, 2, col);
   const place = (id: number, sx: number, sy: number) => {
     const dx = (id % TILESET_COLS) * TILE, dy = Math.floor(id / TILESET_COLS) * TILE;
     ctx.drawImage(t, sx, sy, 16, 16, dx, dy, 16, 16);

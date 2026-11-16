@@ -12,6 +12,7 @@ const STALE_MS = 1500;
 export class RemotePlayer {
   sprite: CharacterSprite;
   private buf: Snapshot[] = [];
+  sitting = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number, dir: Direction, look: Look, name: string) {
     this.sprite = new CharacterSprite(scene, x, y, look, name);
@@ -20,6 +21,7 @@ export class RemotePlayer {
   }
 
   push(m: MovePacket) {
+    this.sitting = m.sitting === true;
     const last = this.buf[this.buf.length - 1];
     if (last && Math.hypot(last.x - m.x, last.y - m.y) > 96) this.buf = []; // teleport: snap
     this.buf.push({ t: performance.now(), x: m.x, y: m.y, dir: m.dir, anim: m.anim });

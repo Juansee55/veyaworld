@@ -20,6 +20,7 @@ export interface MovePacket {
   y: number;
   dir: Direction;
   anim: AnimState;
+  sitting?: boolean;
 }
 
 export interface WorldChannelHandlers {

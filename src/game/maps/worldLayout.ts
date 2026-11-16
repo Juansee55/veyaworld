@@ -57,7 +57,7 @@ export function baseArea(baseId: string) {
 /** Starting plaza of the default map, in overview tiles. */
 export function startArea() {
   const v = worldLayout().maps.find((m) => m.id === DEFAULT_MAP)!;
-  return { x: v.x + 56, y: v.y + 38, w: 12, h: 12 };
+  return { x: v.x + 52, y: v.y + 24, w: 44, h: 29 };
 }
 
 /**

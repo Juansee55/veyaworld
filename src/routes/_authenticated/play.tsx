@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, Map as MapIcon, Shield, Eye, Menu as MenuIcon, ZoomIn, ZoomOut, Backpack } from "lucide-react";
+import { MessageSquare, Map as MapIcon, Shield, Eye, Menu as MenuIcon, ZoomIn, ZoomOut, Backpack, Armchair } from "lucide-react";
 import { PLAYER_MAX_HP } from "@/lib/game/play-rules";
 import { supabase } from "@/integrations/supabase/client";
 import { isDirection, sanitizeLook, type Look } from "@/game/catalog";
@@ -291,6 +291,7 @@ function PlayPage() {
       )}
       <CombatHud d={d} mapId={hud.mapId ?? ""} landscape={landscape} hidden={buttonsHidden} onReload={() => ctrlRef.current?.reloadWeapon()} onBag={() => setMenu("bag")}
         onAttack={() => ctrlRef.current?.attack() ?? Promise.resolve(null)} />
+      {!overlayOpen && !editorOpen && hud.seatAction && <Button variant="secondary" className="absolute bottom-32 right-5 z-20 gap-2" aria-label={hud.seatAction === "stand" ? "Levantarse" : "Sentarse"} onClick={() => ctrlRef.current?.interact()}><Armchair className="h-5 w-5" />{hud.seatAction === "stand" ? "Levantarse" : "Sentarse"}</Button>}
       {!buttonsHidden && <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1"><IconButton icon={<ZoomOut />} label="Alejar vista" onClick={() => ctrlRef.current?.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1 / 1.15)} size="sm" /><IconButton icon={<ZoomIn />} label="Acercar vista" onClick={() => ctrlRef.current?.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1.15)} size="sm" /></div>}
       <div className="pointer-events-none absolute left-1/2 top-24 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
         {toasts.map((t) => (
